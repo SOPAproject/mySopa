@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="2.0" toolsVersion="3084" systemVersion="11G63" targetRuntime="iOS.CocoaTouch.iPad" propertyAccessControl="none" useAutolayout="YES" initialViewController="7gI-rg-Dkh">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="2083"/>
+    </dependencies>
+    <scenes>
+        <!--List View Controller - SOPA Selector-->
+        <scene sceneID="XiC-5A-kBF">
+            <objects>
+                <viewController id="CR1-8A-kxR" customClass="ListViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="TVr-Zg-wQG">
+                        <rect key="frame" x="0.0" y="64" width="768" height="960"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" showsHorizontalScrollIndicator="NO" dataMode="prototypes" style="grouped" separatorStyle="singleLineEtched" rowHeight="44" sectionHeaderHeight="10" sectionFooterHeight="10" translatesAutoresizingMaskIntoConstraints="NO" id="XF1-8r-XyD">
+                                <color key="backgroundColor" cocoaTouchSystemColor="groupTableViewBackgroundColor"/>
+                                <prototypes>
+                                    <tableViewCell contentMode="scaleToFill" selectionStyle="blue" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="myCell" id="yVO-VM-d0v">
+                                        <rect key="frame" x="0.0" y="54" width="737" height="46"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                        <view key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center">
+                                            <rect key="frame" x="45" y="1" width="627" height="43"/>
+                                            <autoresizingMask key="autoresizingMask"/>
+                                            <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
+                                        </view>
+                                        <connections>
+                                            <segue destination="2" kind="push" identifier="showDetail" id="9Jq-nq-BeB"/>
+                                        </connections>
+                                    </tableViewCell>
+                                </prototypes>
+                                <connections>
+                                    <outlet property="dataSource" destination="CR1-8A-kxR" id="JtS-j4-bZZ"/>
+                                    <outlet property="delegate" destination="CR1-8A-kxR" id="Bmp-KM-uV6"/>
+                                </connections>
+                            </tableView>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="Lf5-El-UiO">
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="737" id="V7C-xd-ULw"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="20"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                            <switch opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="Nd3-yq-rVI">
+                                <connections>
+                                    <action selector="mtnSwitch:" destination="CR1-8A-kxR" eventType="valueChanged" id="bnm-Tq-rog"/>
+                                </connections>
+                            </switch>
+                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Self motion" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="gFE-zG-do6">
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="21" id="qzh-6O-Qh5"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="20"/>
+                                <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <color key="backgroundColor" red="0.062745098039215685" green="0.25098039215686274" blue="0.12549019607843137" alpha="1" colorSpace="calibratedRGB"/>
+                        <constraints>
+                            <constraint firstAttribute="bottom" secondItem="gFE-zG-do6" secondAttribute="bottom" constant="64" type="user" id="5wg-yr-LID"/>
+                            <constraint firstAttribute="trailing" secondItem="gFE-zG-do6" secondAttribute="trailing" constant="20" symbolic="YES" type="user" id="FeI-da-KbM"/>
+                            <constraint firstItem="Lf5-El-UiO" firstAttribute="top" secondItem="TVr-Zg-wQG" secondAttribute="top" constant="20" symbolic="YES" type="user" id="IET-Z3-GR5"/>
+                            <constraint firstAttribute="bottom" secondItem="XF1-8r-XyD" secondAttribute="bottom" constant="96" type="user" id="PUm-De-kZq"/>
+                            <constraint firstItem="Lf5-El-UiO" firstAttribute="centerX" secondItem="TVr-Zg-wQG" secondAttribute="centerX" type="user" id="PhJ-HW-9Pb"/>
+                            <constraint firstItem="Nd3-yq-rVI" firstAttribute="leading" secondItem="TVr-Zg-wQG" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="a7k-JN-EgC"/>
+                            <constraint firstItem="gFE-zG-do6" firstAttribute="leading" secondItem="TVr-Zg-wQG" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="f77-Ww-bKa"/>
+                            <constraint firstItem="XF1-8r-XyD" firstAttribute="top" secondItem="Lf5-El-UiO" secondAttribute="bottom" constant="16" type="user" id="gpu-sI-Ask"/>
+                            <constraint firstAttribute="bottom" secondItem="Nd3-yq-rVI" secondAttribute="bottom" constant="20" symbolic="YES" type="user" id="ltc-UT-kMC"/>
+                            <constraint firstItem="XF1-8r-XyD" firstAttribute="trailing" secondItem="Lf5-El-UiO" secondAttribute="trailing" type="user" id="nbI-Af-l3S"/>
+                            <constraint firstItem="Lf5-El-UiO" firstAttribute="leading" secondItem="XF1-8r-XyD" secondAttribute="leading" type="default" id="v9h-tk-PHo"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="SOPA Selector" id="STm-ff-AnC"/>
+                    <connections>
+                        <outlet property="mtnLabel" destination="gFE-zG-do6" id="WED-hX-PlW"/>
+                        <outlet property="myText" destination="Lf5-El-UiO" id="zh3-Q3-VOg"/>
+                        <outlet property="tableView" destination="XF1-8r-XyD" id="h0N-al-YpU"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="HFp-r2-vDM" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-57" y="-310"/>
+        </scene>
+        <!--View Controller - SOPA Player-->
+        <scene sceneID="4">
+            <objects>
+                <viewController id="2" customClass="ViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="5">
+                        <rect key="frame" x="0.0" y="64" width="768" height="960"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Information" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="aJB-vG-t6K">
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="97" id="JX0-FK-VQK"/>
+                                    <constraint firstAttribute="width" constant="741" id="eiQ-x0-QWE"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="24"/>
+                                <color key="textColor" red="0.98039215690000003" green="0.98039215690000003" blue="0.94117647059999998" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Segue" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="wbb-ph-Utm">
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="714" id="VEZ-I9-WGO"/>
+                                    <constraint firstAttribute="height" constant="56" id="jlK-CJ-FhO"/>
+                                </constraints>
+                                <fontDescription key="fontDescription" type="system" pointSize="24"/>
+                                <color key="textColor" red="0.98039215690000003" green="0.98039215690000003" blue="0.94117647059999998" alpha="1" colorSpace="calibratedRGB"/>
+                                <nil key="highlightedColor"/>
+                            </label>
+                        </subviews>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
+                        <constraints>
+                            <constraint firstItem="aJB-vG-t6K" firstAttribute="centerX" secondItem="5" secondAttribute="centerX" type="user" id="FKs-Bp-TwS"/>
+                            <constraint firstItem="aJB-vG-t6K" firstAttribute="centerX" secondItem="wbb-ph-Utm" secondAttribute="centerX" type="user" id="P46-ZA-QLM"/>
+                            <constraint firstItem="aJB-vG-t6K" firstAttribute="top" secondItem="5" secondAttribute="top" constant="256" type="user" id="qCr-ST-ZXd"/>
+                            <constraint firstAttribute="bottom" secondItem="wbb-ph-Utm" secondAttribute="bottom" constant="128" type="user" id="qeS-qj-WoJ"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="SOPA Player" id="qP2-WH-DeN"/>
+                    <connections>
+                        <outlet property="Info" destination="aJB-vG-t6K" id="i6q-uo-5hm"/>
+                        <outlet property="Segue" destination="wbb-ph-Utm" id="G0h-em-pCO"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="3" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="871" y="-311"/>
+        </scene>
+        <!--Navigation Controller-->
+        <scene sceneID="UpZ-aF-hfb">
+            <objects>
+                <navigationController id="7gI-rg-Dkh" sceneMemberID="viewController">
+                    <toolbarItems/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="V5u-N5-yLb">
+                        <rect key="frame" x="0.0" y="0.0" width="768" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <nil name="viewControllers"/>
+                    <connections>
+                        <segue destination="CR1-8A-kxR" kind="relationship" relationship="rootViewController" id="LKk-7q-oyi"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="UGO-X5-bwn" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-1031" y="-310"/>
+        </scene>
+    </scenes>
+    <classes>
+        <class className="ListViewController" superclassName="UIViewController">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/ListViewController.h"/>
+            <relationships>
+                <relationship kind="action" name="mtnSwitch:"/>
+                <relationship kind="outlet" name="mtnLabel" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="myText" candidateClass="UITextField"/>
+                <relationship kind="outlet" name="tableView" candidateClass="UITableView"/>
+            </relationships>
+        </class>
+        <class className="NSLayoutConstraint" superclassName="NSObject">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/NSLayoutConstraint.h"/>
+        </class>
+        <class className="ViewController" superclassName="UIViewController">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/ViewController.h"/>
+            <relationships>
+                <relationship kind="outlet" name="Info" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="Segue" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="motionSwitch" candidateClass="UISwitch"/>
+            </relationships>
+        </class>
+    </classes>
+    <simulatedMetricsContainer key="defaultSimulatedMetrics">
+        <simulatedStatusBarMetrics key="statusBar" statusBarStyle="blackTranslucent"/>
+        <simulatedOrientationMetrics key="orientation"/>
+        <simulatedScreenMetrics key="destination"/>
+    </simulatedMetricsContainer>
+</document>
