@@ -23,10 +23,8 @@
 		30008B32170E6244006F1A69 /* default.gif in Resources */ = {isa = PBXBuildFile; fileRef = 30008B16170E6244006F1A69 /* default.gif */; };
 		30008B33170E6244006F1A69 /* hrtf512.bin in Resources */ = {isa = PBXBuildFile; fileRef = 30008B17170E6244006F1A69 /* hrtf512.bin */; };
 		30008B34170E6244006F1A69 /* panther22k.gif in Resources */ = {isa = PBXBuildFile; fileRef = 30008B18170E6244006F1A69 /* panther22k.gif */; };
-		30008B35170E6244006F1A69 /* panther22k.sopa in Resources */ = {isa = PBXBuildFile; fileRef = 30008B19170E6244006F1A69 /* panther22k.sopa */; };
 		30008B36170E6244006F1A69 /* phase512.bin in Resources */ = {isa = PBXBuildFile; fileRef = 30008B1A170E6244006F1A69 /* phase512.bin */; };
 		30008B37170E6244006F1A69 /* sopa22k.gif in Resources */ = {isa = PBXBuildFile; fileRef = 30008B1B170E6244006F1A69 /* sopa22k.gif */; };
-		30008B38170E6244006F1A69 /* sopa22k.sopa in Resources */ = {isa = PBXBuildFile; fileRef = 30008B1C170E6244006F1A69 /* sopa22k.sopa */; };
 		30008B3A170E6577006F1A69 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 30008B39170E6577006F1A69 /* AudioToolbox.framework */; };
 		3019099F170F91280011B631 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3019099E170F91280011B631 /* CoreMotion.framework */; };
 		30893B2F17126BF4000DF5DE /* Default@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 30893B2E17126BF4000DF5DE /* Default@2x.png */; };
@@ -68,10 +66,8 @@
 		30008B16170E6244006F1A69 /* default.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = default.gif; sourceTree = "<group>"; };
 		30008B17170E6244006F1A69 /* hrtf512.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = hrtf512.bin; sourceTree = "<group>"; };
 		30008B18170E6244006F1A69 /* panther22k.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = panther22k.gif; sourceTree = "<group>"; };
-		30008B19170E6244006F1A69 /* panther22k.sopa */ = {isa = PBXFileReference; lastKnownFileType = file; path = panther22k.sopa; sourceTree = "<group>"; };
 		30008B1A170E6244006F1A69 /* phase512.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = phase512.bin; sourceTree = "<group>"; };
 		30008B1B170E6244006F1A69 /* sopa22k.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = sopa22k.gif; sourceTree = "<group>"; };
-		30008B1C170E6244006F1A69 /* sopa22k.sopa */ = {isa = PBXFileReference; lastKnownFileType = file; path = sopa22k.sopa; sourceTree = "<group>"; };
 		30008B39170E6577006F1A69 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		301466EA17110F8700B01319 /* ja */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = ja; path = ja.lproj/MainStoryboard_iPhone.storyboard; sourceTree = "<group>"; };
 		301466EB17110F8700B01319 /* ja */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = ja; path = ja.lproj/MainStoryboard_iPad.storyboard; sourceTree = "<group>"; };
@@ -187,10 +183,8 @@
 				30008B16170E6244006F1A69 /* default.gif */,
 				30008B17170E6244006F1A69 /* hrtf512.bin */,
 				30008B18170E6244006F1A69 /* panther22k.gif */,
-				30008B19170E6244006F1A69 /* panther22k.sopa */,
 				30008B1A170E6244006F1A69 /* phase512.bin */,
 				30008B1B170E6244006F1A69 /* sopa22k.gif */,
-				30008B1C170E6244006F1A69 /* sopa22k.sopa */,
 			);
 			path = Resource;
 			sourceTree = "<group>";
@@ -253,10 +247,8 @@
 				30008B32170E6244006F1A69 /* default.gif in Resources */,
 				30008B33170E6244006F1A69 /* hrtf512.bin in Resources */,
 				30008B34170E6244006F1A69 /* panther22k.gif in Resources */,
-				30008B35170E6244006F1A69 /* panther22k.sopa in Resources */,
 				30008B36170E6244006F1A69 /* phase512.bin in Resources */,
 				30008B37170E6244006F1A69 /* sopa22k.gif in Resources */,
-				30008B38170E6244006F1A69 /* sopa22k.sopa in Resources */,
 				30893B2F17126BF4000DF5DE /* Default@2x.png in Resources */,
 				30893B3117126C06000DF5DE /* Default-568h@2x.png in Resources */,
 				30893B3317126C90000DF5DE /* Icon.png in Resources */,
