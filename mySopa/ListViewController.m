@@ -1,6 +1,6 @@
 //
 //  ListViewController.m
-//  mySopa
+//  sopaMonitor
 //
 //  Created by Kaoru Ashihara on 13/04/03.
 //  Copyright (c) 2013, AIST. All rights reserved.
@@ -8,10 +8,7 @@
 
 #import "ListViewController.h"
 
-@interface ListViewController (){
-
-    UIActivityIndicatorView *mySpinner;
-}
+@interface ListViewController ()
 
 @end
 
@@ -36,7 +33,7 @@
 {
     SInt16 sItemNum;
     [super viewDidLoad];
-
+    
     _myText.delegate = self;
     _tableView.delegate = self;
     _tableView.dataSource = self;
@@ -48,11 +45,9 @@
     _objects = [[NSMutableArray alloc] initWithContentsOfFile:filePath];
     sItemNum = _objects.count;
     if (sItemNum != 0) {
-//        NSLog(@"%d items found",sItemNum);
         str = [_objects objectAtIndex:0];
     }
     else {
-        NSLog(@"There is no data");
         str = @"http://staff.aist.go.jp/ashihara-k/resource/sopa22k.sopa";
     }
     
@@ -63,23 +58,16 @@
     _myText.text = str;
     _myLabel.textColor = [UIColor lightTextColor];
     _myLabel.numberOfLines = 2;
-    _myLabel.text = @"mySopa\nCopyright (c) 2013, AIST";
-
-    mySpinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-    [mySpinner setColor:[UIColor purpleColor]];
-
+    _myLabel.text = @"sopaMonitor\nCopyright (c) 2013, AIST";
+    
 }
 
 -(void)viewDidUnload{
     if(_objects){
         BOOL successful = [_objects writeToFile:filePath atomically:NO];
-        if (successful) {
-            NSLog(@"Data saved successfully");
-        }
-        else
+        if(!successful)
             NSLog(@"Failed to save data");
     }
-    [mySpinner removeFromSuperview];
 }
 
 - (void)didReceiveMemoryWarning
@@ -106,14 +94,13 @@
     str = _myText.text;
     
     [self.myText resignFirstResponder];
-
+    
     for(sCount = 0;sCount < sNum;sCount ++){
         NSIndexPath *indexPath = [NSIndexPath indexPathForRow:sCount inSection:0];
         NSString *strFind = [_objects[indexPath.row] description];
-
+        
         if([strFind isEqualToString:str]){
             sIndex = sCount;
-//            NSLog(@"I found it");
             isExist = YES;
             sCount = sNum;
         }
@@ -131,14 +118,11 @@
         NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
         [self.tableView insertRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
     }
-
+    
     BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if (successful) {
-        NSLog(@"Data saved successfully");
-    }
-    else
+    if(!successful)
         NSLog(@"Failed to save data");
-
+    
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
     [self.tableView selectRowAtIndexPath:indexPath animated:YES scrollPosition:UITableViewScrollPositionMiddle];
 }
@@ -160,12 +144,12 @@
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     NSString *strTitle;
-
+    
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"myCell" forIndexPath:indexPath];
-
+    
     NSDate *object = _objects[indexPath.row];
     strTitle = [[[object description] componentsSeparatedByString:@"/"] lastObject];
-
+    
     cell.textLabel.text = strTitle;
     [self.myText resignFirstResponder];
     return cell;
@@ -196,50 +180,22 @@
         // Delete the row from the data source
         [_objects removeObjectAtIndex:indexPath.row]; // Delete item
         [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
-    }   
+    }
     else if (editingStyle == UITableViewCellEditingStyleInsert) {
         // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-    }   
-    BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if (successful) {
-        NSLog(@"Data saved successfully");
     }
-    else
+    BOOL successful = [_objects writeToFile:filePath atomically:NO];
+    if(!successful)
         NSLog(@"Failed to save data");
 }
-
-/*
-// Override to support rearranging the table view.
-- (void)tableView:(UITableView *)tableView moveRowAtIndexPath:(NSIndexPath *)fromIndexPath toIndexPath:(NSIndexPath *)toIndexPath
-{
-    NSLog(@"Data move");
-    if(fromIndexPath.section == toIndexPath.section) {
-        if(_objects && toIndexPath.row < [_objects count]) {
-            id item = [_objects objectAtIndex:fromIndexPath.row]; 
-            [_objects removeObject:item];
-            [_objects insertObject:item atIndex:toIndexPath.row];
-        }
-    }
-}
-
-// Override to support conditional rearranging of the table view.
-- (BOOL)tableView:(UITableView *)tableView canMoveRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    // Return NO if you do not want the item to be re-orderable.
-    return YES;
-}
-*/
 
 #pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{    
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithCustomView:mySpinner];
-    [mySpinner startAnimating];
-    _myLabel.textColor = [UIColor yellowColor];
-    _myLabel.text = @"Loading database\nPlease wait";
+{
+    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] init];
     
-    [self performSelector:@selector(performBeforeSegue)withObject:nil afterDelay:0.1];
+    [self performSegueWithIdentifier:@"showDetail" sender:self];
 }
 
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
@@ -261,23 +217,15 @@
     [_objects removeObject:item];
     [_objects insertObject:item atIndex:toPath.row];
     _myText.text = [_objects[toPath.row] description];
-
+    
     BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if (successful) {
-        NSLog(@"Data saved successfully");
-    }
-    else
+    if(!successful)
         NSLog(@"Failed to save data");
     
     _myLabel.textColor = [UIColor lightTextColor];
-    _myLabel.text = @"mySopa\nCopyright 2013, AIST";
-    [mySpinner stopAnimating];
+    _myLabel.text = @"sopaMonitor\nCopyright 2013, AIST";
     self.navigationItem.leftBarButtonItem = self.editButtonItem;
-
-}
-
--(void)performBeforeSegue{
-    [self performSegueWithIdentifier:@"showDetail" sender:self];
+    
 }
 
 @end

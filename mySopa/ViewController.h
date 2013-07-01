@@ -42,6 +42,9 @@
 @property (strong, nonatomic) IBOutlet UILabel *Info;
 @property (strong, nonatomic) IBOutlet UILabel *Segue;
 @property (strong, nonatomic) IBOutlet UISwitch *mtnSwitch;
+@property (strong) NSURLConnection *imageConn;
+@property (strong) NSMutableData *imageData;
+@property (strong) CMMotionManager *manager;
 
 - (IBAction)gyroOn:(id)sender;
 

@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="2.0" toolsVersion="3084" systemVersion="11G63" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" initialViewController="3td-Sa-3Ut">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="2.0" toolsVersion="3084" systemVersion="11G63" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" initialViewController="Tec-nm-gr2">
     <dependencies>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="2083"/>
     </dependencies>
     <scenes>
         <!--List View Controller - SOPA Selector-->
-        <scene sceneID="old-35-Uiw">
+        <scene sceneID="tdu-M7-hRs">
             <objects>
-                <viewController id="u8P-ed-bGo" customClass="ListViewController" sceneMemberID="viewController">
-                    <view key="view" contentMode="scaleToFill" id="6ry-PC-daj">
+                <viewController id="2FV-mA-gwj" customClass="ListViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="jWf-Eu-ELI">
                         <rect key="frame" x="0.0" y="64" width="320" height="504"/>
-                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="niX-1a-jmL">
-                                <color key="backgroundColor" red="0.98039215690000003" green="0.98039215690000003" blue="0.94117647059999998" alpha="1" colorSpace="calibratedRGB"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="18"/>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="qwW-WQ-x7j">
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
                                 <textInputTraits key="textInputTraits"/>
                             </textField>
-                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="grouped" separatorStyle="singleLineEtched" rowHeight="44" sectionHeaderHeight="10" sectionFooterHeight="10" translatesAutoresizingMaskIntoConstraints="NO" id="T29-mU-KO1">
+                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="grouped" separatorStyle="singleLineEtched" rowHeight="44" sectionHeaderHeight="10" sectionFooterHeight="10" translatesAutoresizingMaskIntoConstraints="NO" id="tfY-Dh-gU2">
                                 <color key="backgroundColor" cocoaTouchSystemColor="groupTableViewBackgroundColor"/>
                                 <prototypes>
-                                    <tableViewCell contentMode="scaleToFill" selectionStyle="blue" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="myCell" id="uOL-Vu-mis">
+                                    <tableViewCell contentMode="scaleToFill" selectionStyle="blue" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="myCell" id="5KK-fm-ys1">
                                         <rect key="frame" x="0.0" y="46" width="280" height="46"/>
                                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                                         <view key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center">
@@ -31,111 +30,66 @@
                                     </tableViewCell>
                                 </prototypes>
                                 <connections>
-                                    <outlet property="dataSource" destination="u8P-ed-bGo" id="gdQ-vd-Bxq"/>
-                                    <outlet property="delegate" destination="u8P-ed-bGo" id="m4F-fj-HSH"/>
+                                    <outlet property="dataSource" destination="2FV-mA-gwj" id="wow-rs-UZK"/>
+                                    <outlet property="delegate" destination="2FV-mA-gwj" id="C0b-eU-vym"/>
                                 </connections>
                             </tableView>
-                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="mySOPA" textAlignment="center" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" preferredMaxLayoutWidth="284" translatesAutoresizingMaskIntoConstraints="NO" id="Q8G-Pp-48N">
-                                <accessibility key="accessibilityConfiguration" label="loading"/>
-                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
-                                <color key="textColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="calibratedRGB"/>
-                                <nil key="highlightedColor"/>
-                            </label>
                         </subviews>
-                        <color key="backgroundColor" red="0.062745098040000002" green="0.25098039220000001" blue="0.12549019610000001" alpha="1" colorSpace="calibratedRGB"/>
+                        <color key="backgroundColor" red="0.75294117650000003" green="0.87843137250000003" blue="0.62745098040000002" alpha="1" colorSpace="calibratedRGB"/>
                         <constraints>
-                            <constraint firstItem="Q8G-Pp-48N" firstAttribute="trailing" secondItem="niX-1a-jmL" secondAttribute="trailing" type="default" id="DRh-7s-pjB"/>
-                            <constraint firstItem="T29-mU-KO1" firstAttribute="leading" secondItem="6ry-PC-daj" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="GTl-Wj-BmM"/>
-                            <constraint firstItem="T29-mU-KO1" firstAttribute="top" secondItem="niX-1a-jmL" secondAttribute="bottom" constant="8" symbolic="YES" type="user" id="I9M-ED-OPz"/>
-                            <constraint firstItem="niX-1a-jmL" firstAttribute="leading" secondItem="6ry-PC-daj" secondAttribute="leading" constant="8" type="user" id="LWv-0n-MFM"/>
-                            <constraint firstAttribute="bottom" secondItem="T29-mU-KO1" secondAttribute="bottom" constant="72" type="user" id="Nui-44-75c"/>
-                            <constraint firstAttribute="trailing" secondItem="T29-mU-KO1" secondAttribute="trailing" constant="20" symbolic="YES" type="default" id="UTA-Xy-PcT"/>
-                            <constraint firstItem="Q8G-Pp-48N" firstAttribute="leading" secondItem="6ry-PC-daj" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="ccO-1P-Zbb"/>
-                            <constraint firstItem="Q8G-Pp-48N" firstAttribute="trailing" secondItem="6ry-PC-daj" secondAttribute="trailing" constant="-16" type="user" id="dpf-yV-KfT"/>
-                            <constraint firstItem="Q8G-Pp-48N" firstAttribute="top" secondItem="T29-mU-KO1" secondAttribute="bottom" constant="8" symbolic="YES" type="user" id="hRA-WF-U45"/>
-                            <constraint firstItem="niX-1a-jmL" firstAttribute="top" secondItem="6ry-PC-daj" secondAttribute="top" constant="8" type="user" id="skr-LL-D1o"/>
-                            <constraint firstAttribute="bottom" secondItem="Q8G-Pp-48N" secondAttribute="bottom" constant="20" symbolic="YES" type="user" id="uuv-D7-8hQ"/>
+                            <constraint firstAttribute="bottom" secondItem="tfY-Dh-gU2" secondAttribute="bottom" constant="20" symbolic="YES" type="user" id="7xG-7Y-n7e"/>
+                            <constraint firstItem="tfY-Dh-gU2" firstAttribute="leading" secondItem="jWf-Eu-ELI" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="cdx-gi-IRg"/>
+                            <constraint firstItem="tfY-Dh-gU2" firstAttribute="top" secondItem="qwW-WQ-x7j" secondAttribute="bottom" constant="8" type="user" id="gm9-Ab-tvT"/>
+                            <constraint firstAttribute="trailing" secondItem="tfY-Dh-gU2" secondAttribute="trailing" constant="20" symbolic="YES" type="user" id="rKv-wr-EuP"/>
+                            <constraint firstItem="qwW-WQ-x7j" firstAttribute="top" secondItem="jWf-Eu-ELI" secondAttribute="top" constant="8" type="user" id="sL0-fj-kQz"/>
+                            <constraint firstAttribute="trailing" secondItem="qwW-WQ-x7j" secondAttribute="trailing" constant="20" symbolic="YES" type="default" id="wZ7-iW-IVd"/>
+                            <constraint firstItem="qwW-WQ-x7j" firstAttribute="leading" secondItem="jWf-Eu-ELI" secondAttribute="leading" constant="20" symbolic="YES" type="default" id="yW6-Mx-ZcJ"/>
                         </constraints>
                     </view>
-                    <navigationItem key="navigationItem" title="SOPA Selector" id="eQQ-ah-WXy"/>
+                    <navigationItem key="navigationItem" title="SOPA Selector" id="CcP-DW-ni2"/>
                     <connections>
-                        <outlet property="myLabel" destination="Q8G-Pp-48N" id="HWX-DU-3kH"/>
-                        <outlet property="myText" destination="niX-1a-jmL" id="vsp-9h-GCI"/>
-                        <outlet property="tableView" destination="T29-mU-KO1" id="c2k-rK-YR2"/>
-                        <segue destination="2" kind="push" identifier="showDetail" id="dDL-KJ-rcg"/>
+                        <outlet property="myText" destination="qwW-WQ-x7j" id="ypW-jq-Bjo"/>
+                        <outlet property="tableView" destination="tfY-Dh-gU2" id="P6e-tp-ukk"/>
+                        <segue destination="2" kind="push" identifier="showDetail" id="cd0-Pt-bwX"/>
                     </connections>
                 </viewController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="HNs-Nl-nFn" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="4Yt-DN-pl6" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="208" y="-13"/>
+            <point key="canvasLocation" x="212" y="-14"/>
         </scene>
         <!--View Controller - SOPA Player-->
         <scene sceneID="5">
             <objects>
                 <viewController id="2" customClass="ViewController" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="3">
-                        <rect key="frame" x="0.0" y="64" width="320" height="460"/>
+                        <rect key="frame" x="0.0" y="64" width="320" height="504"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
-                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Segue" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="si5-8F-sMi">
-                                <constraints>
-                                    <constraint firstAttribute="height" relation="greaterThanOrEqual" constant="48" type="user" id="SdJ-jX-dko"/>
-                                </constraints>
-                                <fontDescription key="fontDescription" type="system" pointSize="16"/>
-                                <color key="textColor" red="0.98039215690000003" green="0.98039215690000003" blue="0.94117647059999998" alpha="1" colorSpace="calibratedRGB"/>
+                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Welcome to the panoramic world" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="4RD-xb-qWG">
+                                <accessibility key="accessibilityConfiguration" label="Welcome to the panoramic world"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
                                 <nil key="highlightedColor"/>
                             </label>
-                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" text="Information" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="yal-cx-LwG">
-                                <constraints>
-                                    <constraint firstAttribute="height" relation="greaterThanOrEqual" constant="80" type="user" id="Xar-Fl-OAo"/>
-                                </constraints>
-                                <fontDescription key="fontDescription" type="system" pointSize="16"/>
-                                <color key="textColor" red="0.98039215690000003" green="0.98039215690000003" blue="0.94117647059999998" alpha="1" colorSpace="calibratedRGB"/>
-                                <nil key="highlightedColor"/>
-                            </label>
-                            <switch opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="yx5-ru-Q79">
+                            <switch opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="w4n-OZ-oh0">
                                 <connections>
-                                    <action selector="gyroOn:" destination="2" eventType="valueChanged" id="JBX-qx-sUH"/>
+                                    <action selector="gyroOn:" destination="2" eventType="valueChanged" id="R42-tB-32D"/>
                                 </connections>
                             </switch>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="calibratedWhite"/>
                         <constraints>
-                            <constraint firstAttribute="trailing" secondItem="si5-8F-sMi" secondAttribute="trailing" constant="20" symbolic="YES" type="user" id="D6g-mc-TGU"/>
-                            <constraint firstAttribute="bottom" secondItem="si5-8F-sMi" secondAttribute="bottom" constant="36" type="user" id="LtF-08-b81"/>
-                            <constraint firstItem="yx5-ru-Q79" firstAttribute="trailing" secondItem="3" secondAttribute="trailing" constant="-8" type="user" id="XFg-sT-W3y"/>
-                            <constraint firstItem="yal-cx-LwG" firstAttribute="top" secondItem="3" secondAttribute="top" constant="116" type="user" id="Xy1-IY-1AH"/>
-                            <constraint firstItem="si5-8F-sMi" firstAttribute="leading" secondItem="3" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="boe-pU-52I"/>
-                            <constraint firstItem="yx5-ru-Q79" firstAttribute="bottom" secondItem="3" secondAttribute="bottom" constant="-8" type="user" id="exE-YU-2KB"/>
-                            <constraint firstItem="yx5-ru-Q79" firstAttribute="trailing" secondItem="yal-cx-LwG" secondAttribute="trailing" type="default" id="sx6-fr-y3T"/>
-                            <constraint firstItem="yal-cx-LwG" firstAttribute="centerX" secondItem="3" secondAttribute="centerX" type="user" id="wFU-HA-1XD"/>
+                            <constraint firstAttribute="trailing" secondItem="4RD-xb-qWG" secondAttribute="trailing" constant="20" symbolic="YES" type="user" id="1wQ-RL-FfK"/>
+                            <constraint firstItem="4RD-xb-qWG" firstAttribute="leading" secondItem="3" secondAttribute="leading" constant="20" symbolic="YES" type="user" id="PfR-d6-Kj7"/>
+                            <constraint firstAttribute="trailing" secondItem="w4n-OZ-oh0" secondAttribute="trailing" constant="20" symbolic="YES" type="user" id="bAm-Ea-PHC"/>
+                            <constraint firstAttribute="bottom" secondItem="4RD-xb-qWG" secondAttribute="bottom" constant="12" type="user" id="iqW-GR-lXY"/>
+                            <constraint firstItem="4RD-xb-qWG" firstAttribute="top" secondItem="w4n-OZ-oh0" secondAttribute="bottom" constant="8" symbolic="YES" type="user" id="ocD-Ud-7Th"/>
                         </constraints>
                     </view>
-                    <toolbarItems>
-                        <barButtonItem title="Gyro start" id="K2r-yo-1te">
-                            <button key="customView" opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" id="1aO-XT-37h">
-                                <rect key="frame" x="6" y="6" width="71" height="33"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
-                                <fontDescription key="fontDescription" type="boldSystem" pointSize="15"/>
-                                <state key="normal" title="Button">
-                                    <color key="titleColor" red="0.19607843459999999" green="0.30980393290000002" blue="0.52156865600000002" alpha="1" colorSpace="calibratedRGB"/>
-                                    <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
-                                </state>
-                                <state key="highlighted">
-                                    <color key="titleColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
-                                </state>
-                            </button>
-                            <connections>
-                                <action selector="gyroOn:" destination="2" id="D1V-tr-BNe"/>
-                            </connections>
-                        </barButtonItem>
-                    </toolbarItems>
-                    <navigationItem key="navigationItem" title="SOPA Player" id="iEy-K5-STQ"/>
-                    <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
+                    <navigationItem key="navigationItem" title="SOPA Player" id="XYY-XQ-L6D"/>
                     <connections>
-                        <outlet property="Info" destination="yal-cx-LwG" id="Yv2-Ey-W7l"/>
-                        <outlet property="Segue" destination="si5-8F-sMi" id="kuK-cm-XXS"/>
-                        <outlet property="mtnSwitch" destination="yx5-ru-Q79" id="rjS-61-Cxz"/>
+                        <outlet property="Segue" destination="4RD-xb-qWG" id="uFC-Bq-Uwd"/>
+                        <outlet property="mtnSwitch" destination="w4n-OZ-oh0" id="79B-gA-yEc"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="4" sceneMemberID="firstResponder"/>
@@ -143,24 +97,46 @@
             <point key="canvasLocation" x="647" y="-14"/>
         </scene>
         <!--Navigation Controller-->
-        <scene sceneID="fAX-hY-DNf">
+        <scene sceneID="I23-gX-cp8">
             <objects>
-                <navigationController id="3td-Sa-3Ut" sceneMemberID="viewController">
+                <navigationController id="Tec-nm-gr2" sceneMemberID="viewController">
                     <toolbarItems/>
-                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="bTG-k8-Zbu">
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="dbi-aF-Kgs">
                         <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
                     </navigationBar>
                     <nil name="viewControllers"/>
                     <connections>
-                        <segue destination="u8P-ed-bGo" kind="relationship" relationship="rootViewController" id="mUZ-VM-PCL"/>
+                        <segue destination="2FV-mA-gwj" kind="relationship" relationship="rootViewController" id="bPd-g7-lb3"/>
                     </connections>
                 </navigationController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="bxa-3y-WMh" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="T01-pB-Pk0" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-272" y="-13"/>
+            <point key="canvasLocation" x="-251" y="-14"/>
         </scene>
     </scenes>
+    <classes>
+        <class className="ListViewController" superclassName="UIViewController">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/ListViewController.h"/>
+            <relationships>
+                <relationship kind="outlet" name="myLabel" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="myText" candidateClass="UITextField"/>
+                <relationship kind="outlet" name="tableView" candidateClass="UITableView"/>
+            </relationships>
+        </class>
+        <class className="NSLayoutConstraint" superclassName="NSObject">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/NSLayoutConstraint.h"/>
+        </class>
+        <class className="ViewController" superclassName="UIViewController">
+            <source key="sourceIdentifier" type="project" relativePath="./Classes/ViewController.h"/>
+            <relationships>
+                <relationship kind="action" name="gyroOn:"/>
+                <relationship kind="outlet" name="Info" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="Segue" candidateClass="UILabel"/>
+                <relationship kind="outlet" name="mtnSwitch" candidateClass="UISwitch"/>
+            </relationships>
+        </class>
+    </classes>
     <simulatedMetricsContainer key="defaultSimulatedMetrics">
         <simulatedStatusBarMetrics key="statusBar"/>
         <simulatedOrientationMetrics key="orientation"/>

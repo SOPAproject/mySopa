@@ -2,8 +2,8 @@
 //  main.m
 //  mySopa
 //
-//  Created by 蘆原 郁 on 13/04/05.
-//  Copyright (c) 2013年 com.ashihara-k. All rights reserved.
+//  Created by 蘆原 郁 on 13/06/21.
+//  Copyright (c) 2013年 jp.go.aist.staff. All rights reserved.
 //
 
 #import <UIKit/UIKit.h>

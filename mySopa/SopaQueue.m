@@ -51,12 +51,14 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     SInt32 sCurrentDataOffset;
     SInt16 *sAngl;
     SInt16 *sStream;
+    SInt16 connStatusCode;
     double *dHan;
-    NSMutableData *mData0,*mData1;
+    NSMutableData *mData0,*mData1,*mHrtf,*mPhase;
 }
 
 @synthesize ExtBufSize;
 @synthesize myConn;
+@synthesize databaseConn;
 @synthesize urlStr;
 @synthesize numBytesWritten;
 @synthesize numOffset;
@@ -64,12 +66,14 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 @synthesize nTrial;
 @synthesize isLoaded;
 @synthesize isPrepared;
+@synthesize isPlaying;
+@synthesize isCanceled;
 @synthesize iSize;
+@synthesize iStage;
 @synthesize iOverlapFactor;
 @synthesize numSampleRate;
 @synthesize numPacketsToRead;
 @synthesize iRot;
-@synthesize isPlaying;
 
 -(id)init{
     self = [super init];
@@ -79,73 +83,151 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     [self setIRot:0];
     [self setNumSampleRate:22050];
     
+    sHrtf = (malloc(sizeof(SInt16) * 36864));
+    sPhase = (malloc(sizeof(SInt16) * 36864));
+    
+    iStage = 0;
+    
     return self;
 }
 
--(BOOL)loadDatabase{
+-(void)loadDatabaseFromDir{
+    SInt32 nInt;
+    NSData *val0,*val1;
+
+//    NSLog(@"Search files in the application directories");
+    if(iStage == 0){
+        NSString *hrtfPath = [[NSBundle mainBundle] pathForResource:@"hrtf512" ofType:@"bin"];
+        mHrtf = [NSData dataWithContentsOfFile:hrtfPath];
+    }
+    NSString *phasePath = [[NSBundle mainBundle] pathForResource:@"phase512" ofType:@"bin"];
+    mPhase = [NSData dataWithContentsOfFile:phasePath];
+
+    if(mHrtf == nil || mPhase == nil){
+        NSNotification* notification;
+        notification = [NSNotification notificationWithName:@"databaseError" object:self];
+        NSNotificationCenter* center;
+        center = [NSNotificationCenter defaultCenter];
+        
+        // Post notification
+        [center postNotification:notification];
+    }
+    else{
+        nInt = 0;
+        while (nInt < 36864 && !isCanceled){
+            val0 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2,1)];
+            val1 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            sHrtf[nInt] = *(SInt16 *)[val0 bytes];
+            sHrtf[nInt] += *(SInt16 *)[val1 bytes] * 256;
+            val0 = [mPhase subdataWithRange:NSMakeRange(nInt * 2,1)];
+            val1 = [mPhase subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            sPhase[nInt] = *(SInt16 *)[val0 bytes];
+            sPhase[nInt] += *(SInt16 *)[val1 bytes] * 256;
+            nInt ++;
+        }
+        if(isCanceled){
+            NSNotification* notification;
+            notification = [NSNotification notificationWithName:@"databaseError" object:self];
+            NSNotificationCenter* center;
+            center = [NSNotificationCenter defaultCenter];
+            
+            // Post notification
+            [center postNotification:notification];
+            return;
+        }
+        
+        iStage = 2;
+        
+        isPrepared = NO;
+        [self setIsPlaying:NO];
+        
+        NSNotification* notification;
+        notification = [NSNotification notificationWithName:@"databaseReady" object:self];
+        NSNotificationCenter* center;
+        center = [NSNotificationCenter defaultCenter];
+        
+        // Post notification
+        [center postNotification:notification];
+    }
+}
+
+-(void)loadDatabase{
     NSURL *hrtfUrl,*phaseUrl;
     NSURL *sopaUrl;
     
     //  Prepare HRTF database
     SInt32 nInt;
     NSData *val0,*val1;
-    NSMutableData *data0,*data1;
     
-    sHrtf = (malloc(sizeof(SInt16) * 36864));
-    sPhase = (malloc(sizeof(SInt16) * 36864));
-    
-    NSRange rang = [self.urlStr rangeOfString:@"://"];
-    if(rang.location == NSNotFound){
-        NSLog(@"Search files in the application directories");
-        hrtfUrl = [NSURL fileURLWithPath:
-                   [[NSBundle mainBundle] pathForResource:@"hrtf512" ofType:@"bin"]];
-        phaseUrl = [NSURL fileURLWithPath:
-                    [[NSBundle mainBundle] pathForResource:@"phase512" ofType:@"bin"]];
-        data0 = [NSData dataWithContentsOfURL:hrtfUrl];
-        data1 = [NSData dataWithContentsOfURL:phaseUrl];
-        if(data0 == nil || data1 == nil)
-            return NO;
-    }
-    else{
+    if(iStage == 0){
         sopaUrl = [[NSURL alloc]initWithString:self.urlStr];
         NSURL *newUrl = sopaUrl.URLByDeletingLastPathComponent;
         hrtfUrl = [newUrl URLByAppendingPathComponent:@"hrtf512.bin"];
+        
+        NSURLRequest *request = [NSURLRequest requestWithURL:hrtfUrl cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:30];
+        self.databaseConn = [[NSURLConnection alloc]initWithRequest : request delegate : self];
+        if(!self.databaseConn){
+            [self loadDatabaseFromDir];
+        }
+    }
+    else if(iStage == 1){
+        sopaUrl = [[NSURL alloc]initWithString:self.urlStr];
+        NSURL *newUrl = sopaUrl.URLByDeletingLastPathComponent;
         phaseUrl = [newUrl URLByAppendingPathComponent:@"phase512.bin"];
         
-        data0 = [NSData dataWithContentsOfURL:hrtfUrl];
-        data1 = [NSData dataWithContentsOfURL:phaseUrl];
-        if(data0 == nil || data1 == nil){
-            NSLog(@"Search files in the application directories");
-            hrtfUrl = [NSURL fileURLWithPath:
-                       [[NSBundle mainBundle] pathForResource:@"hrtf512" ofType:@"bin"]];
-            phaseUrl = [NSURL fileURLWithPath:
-                        [[NSBundle mainBundle] pathForResource:@"phase512" ofType:@"bin"]];
-            data0 = [NSData dataWithContentsOfURL:hrtfUrl];
-            data1 = [NSData dataWithContentsOfURL:phaseUrl];
-            if(data0 == nil || data1 == nil)
-                return NO;
+        NSURLRequest *request = [NSURLRequest requestWithURL:phaseUrl cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:30];
+        self.databaseConn = [[NSURLConnection alloc]initWithRequest : request delegate : self];
+        if(!self.databaseConn){
+            [self loadDatabaseFromDir];
         }
+    }
+    else if(iStage == 2){
+        nInt = 0;
+        while(nInt < 36864 && !isCanceled){
+            val0 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2,1)];
+            val1 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            sHrtf[nInt] = *(SInt16 *)[val0 bytes];
+            sHrtf[nInt] += *(SInt16 *)[val1 bytes] * 256;   
+            
+            val0 = [mPhase subdataWithRange:NSMakeRange(nInt * 2,1)];
+            val1 = [mPhase subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            sPhase[nInt] = *(SInt16 *)[val0 bytes];
+            sPhase[nInt] += *(SInt16 *)[val1 bytes] * 256;
+            nInt ++;
+        }
+        mHrtf = nil;
+        mPhase = nil;
         
+        if(isCanceled){
+            NSNotification* notification;
+            notification = [NSNotification notificationWithName:@"databaseError" object:self];
+            NSNotificationCenter* center;
+            center = [NSNotificationCenter defaultCenter];
+            
+            // Post notification
+            [center postNotification:notification];
+            return;
+        }
+        isPrepared = NO;
+        [self setIsPlaying:NO];
+        
+        NSNotification* notification;
+        notification = [NSNotification notificationWithName:@"databaseReady" object:self];
+        NSNotificationCenter* center;
+        center = [NSNotificationCenter defaultCenter];
+        
+        // Post notification
+        [center postNotification:notification];
     }
-    for(nInt = 0;nInt < 36864;nInt ++){
-        val0 = [data0 subdataWithRange:NSMakeRange(nInt * 2,1)];
-        val1 = [data0 subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
-        sHrtf[nInt] = *(SInt16 *)[val0 bytes];
-        sHrtf[nInt] += *(SInt16 *)[val1 bytes] * 256;
-    }
-//    NSLog(@"HRTF (level) ready");
-    
-    for(nInt = 0;nInt < 36864;nInt ++){
-        val0 = [data1 subdataWithRange:NSMakeRange(nInt * 2,1)];
-        val1 = [data1 subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
-        sPhase[nInt] = *(SInt16 *)[val0 bytes];
-        sPhase[nInt] += *(SInt16 *)[val1 bytes] * 256;
-    }
-//    NSLog(@"HRTF (phase) ready");
-    
-    isPrepared = NO;
-    [self setIsPlaying:NO];
-    return YES;
+}
+
+-(void)cancelLoading{
+    if(!self.databaseConn)
+        return;
+    [[self databaseConn] cancel];
+    self.databaseConn = nil;
+    mHrtf = nil;
+    mPhase = nil;
 }
 
 -(void)prepareSopaQueue{
@@ -165,7 +247,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     
     AudioQueueBufferRef buffers[3];
     
-//    NSLog(@"numPacketsToRead = %lu",numPacketsToRead);
     UInt32 bufferByteSize = numPacketsToRead * audioFormat.mBytesPerPacket;
     
     int bufferIndex;
@@ -230,14 +311,33 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 }
 
 -(void) connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
-    NSLog(@"Connected");
+	NSHTTPURLResponse *res = (NSHTTPURLResponse *)response;
     
+    connStatusCode = [res statusCode];
+    if(connStatusCode >= 400){
+        [connection cancel];
+        [self connection:connection didFailWithError:nil];
+    }
+    else if(iStage < 2){
+        if(iStage == 0)
+            mHrtf = [[NSMutableData alloc]initWithLength:0];
+        else if(iStage == 1)
+            mPhase = [[NSMutableData alloc]initWithLength:0];
+    }
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
     BOOL isWrong = NO;
     
-    if(!isPlaying)
+    if(iStage == 0){
+        [mHrtf appendData:data];
+        return;
+    }
+    else if(iStage == 1){
+        [mPhase appendData:data];
+        return;
+    }
+    else if(!isPlaying)
         return;
     //  Append data to data stream
     if(sCurrentData == 0){
@@ -273,7 +373,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             nDat[nInt] = *(int *)([val0 bytes]);
         }
         if(memcmp(nDat,nTerm0,4) != 0){
-            NSLog(@"Format error!");
             val0 = nil;
             isWrong = YES;
         }
@@ -282,7 +381,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             nDat[nInt] = *(int *)([val0 bytes]);
         }
         if(memcmp(nDat,nTerm1,4) != 0){
-            NSLog(@"Format error!");
             val0 = nil;
             isWrong = YES;
         }
@@ -291,28 +389,24 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             nDat[nInt] = *(int *)([val0 bytes]);
         }
         if(memcmp(nDat,nTerm2,3) != 0){
-            NSLog(@"Format error!");
             val0 = nil;
             return;
         }
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(16,1)];
         nBit = *(int *)([val0 bytes]);
         if(nBit != 16){
-            NSLog(@"Data are not 16-bit!");
             val0 = nil;
             isWrong = YES;
         }
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(20,1)];
         nBit = *(int *)([val0 bytes]);
         if(nBit != 1){
-            NSLog(@"Data are not PCM!");
             val0 = nil;
             isWrong = YES;
         }
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(22,1)];
         iOverlapFactor = *(int *)([val0 bytes]);
         if(iOverlapFactor != 2 && iOverlapFactor != 4){
-            NSLog(@"Wrong value!");
             val0 = nil;
             isWrong = YES;
         }
@@ -352,65 +446,49 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
+    connection = nil;
     if(isPlaying){
         isLoaded = YES;
 
-        UIAlertView *alertView = [[UIAlertView alloc]
-                                  initWithTitle : @"RequestError"
-                                  message:@"Data transmission error!"
-                                  delegate : nil cancelButtonTitle : @"OK"
-                                  otherButtonTitles : nil];
-        [alertView show];
-        
-        NSLog(@"%@.",[error localizedDescription]);
         NSNotification* notification;
-         notification = [NSNotification notificationWithName:@"errorDetection" object:self];
-         NSNotificationCenter* center;
-         center = [NSNotificationCenter defaultCenter];
+        notification = [NSNotification notificationWithName:@"connectionFailed" object:self];
+        NSNotificationCenter* center;
+        center = [NSNotificationCenter defaultCenter];
          
          // Post notification
-         [center postNotification:notification]; 
+        [center postNotification:notification]; 
     }
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
-	// memory
-    isLoaded = YES;
-    NSLog(@"Comminucation finished");
-    NSLog(@"\n%lu bytes read",self.nBytesRead);
+
     connection = nil;
     if(!isPlaying){
         mData0 = nil;
         mData1 = nil;
     }
-    if(!nTrial){
-        UIAlertView *alertView = [[UIAlertView alloc]
-                                  initWithTitle : @"TransmittionError"
-                                  message:@"URL does not contain data!"
-                                  delegate : nil cancelButtonTitle : @"OK"
-                                  otherButtonTitles : nil];
-        [alertView show];
-        
-        NSNotification* notification;
-        notification = [NSNotification notificationWithName:@"errorDetection" object:self];
-        NSNotificationCenter* center;
-        center = [NSNotificationCenter defaultCenter];
-        
-        // Post notification
-        [center postNotification:notification];
+    if(iStage == 0 || iStage == 1){
+        iStage ++;
+        [self loadDatabase];    
+    }
+    else{
+        isLoaded = YES;
+        if(!nTrial || connStatusCode >= 400){
+            NSNotification* notification;
+            notification = [NSNotification notificationWithName:@"fileError" object:self];
+            NSNotificationCenter* center;
+            center = [NSNotificationCenter defaultCenter];
+            
+            // Post notification
+            [center postNotification:notification];
+        }
     }
 }
 
 -(void)stop:(BOOL)shouldStopImmediate{
     AudioQueueStop(sopaQueueObject, shouldStopImmediate);
     isPrepared = NO;
-    NSLog(@"Reproduction finished");
-    NSLog(@"%lu bytes played",numBytesWritten);
 
-    if(sopaQueueObject){
-        AudioQueueDispose(sopaQueueObject,YES);
-        sopaQueueObject = nil;
-    }
     nTrial = NO;
     
     self.nBytesRead = 0;
@@ -506,6 +584,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 }
 
 -(void)_processor:(AudioQueueRef)inAQ queueBuffer:(AudioQueueBufferRef)inBuffer{
+    OSStatus err;
     UInt32 iCount,iFnum;
     UInt32 numPackets = self.numPacketsToRead;
     SInt32 iInt,sSample,iNum,iPos,iPosImage;
@@ -531,7 +610,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             iInt += 4;
         }
         iSize = iInt - 5;                    // Frame size
-        NSLog(@"Frame size is %d",iSize);
         iRatio = 44100 / numSampleRate;
         iRatio *= iSize / 512;
         iProc = iSize / iOverlapFactor;
@@ -736,7 +814,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                 iBufSize += 4;
                 numBytesWritten += 4;
                 numOffset += 4;
-                if(numBytesWritten >= nBytesRead - iMarg){
+                if(numBytesWritten > nBytesRead - iMarg){
                     if(!isLoaded){
                         UIAlertView *alert = [[UIAlertView alloc]
                                               initWithTitle : @"Streaming error"
@@ -769,8 +847,14 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     }
     if(nTrial){
         inBuffer->mAudioDataByteSize = iBufSize;
-        if (AudioQueueEnqueueBuffer(inAQ,inBuffer,0,NULL)){
-            NSLog(@"AudioQueue error!");
+        err = AudioQueueEnqueueBuffer(inAQ,inBuffer,0,NULL);
+        if(err){
+/*
+            NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain
+                            code:err
+                            userInfo:nil];
+            NSLog(@"Error: %@", [error description]);
+*/ 
             if(isPlaying){
                 [self setIsPlaying:NO];
                 [self stop:YES];

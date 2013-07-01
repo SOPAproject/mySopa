@@ -1,6 +1,6 @@
 //
 //  ListViewController.h
-//  mySopa
+//  sopaMonitor
 //
 /*
  Copyright (c) 2013, AIST

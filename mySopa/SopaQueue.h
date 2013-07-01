@@ -40,17 +40,22 @@
 @property BOOL nTrial;
 @property BOOL isLoaded;
 @property BOOL isPrepared;
+@property BOOL isPlaying;
+@property BOOL isCanceled;
 @property SInt16 iSize;
 @property SInt16 iOverlapFactor;
+@property SInt16 iStage;
 @property (strong)NSURLConnection *myConn;
+@property (strong)NSURLConnection *databaseConn;
 @property (strong)NSString *urlStr;
 @property UInt32 numSampleRate;
 @property UInt32 numPacketsToRead;
 @property UInt16 iRot;
-@property BOOL isPlaying;
 
 -(void)play;
--(BOOL)loadDatabase;
+-(void)loadDatabase;
+-(void)loadDatabaseFromDir;
+-(void)cancelLoading;
 -(void)prepareSopaQueue;
 -(void)stop:(BOOL)shouldStopImmediate;
 
