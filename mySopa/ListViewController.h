@@ -1,6 +1,6 @@
 //
 //  ListViewController.h
-//  sopaMonitor
+//  mySopa
 //
 /*
  Copyright (c) 2013, AIST
@@ -24,6 +24,7 @@
  SOFTWARE.
  
  */
+//
 
 #import <UIKit/UIKit.h>
 #import "ViewController.h"
@@ -31,21 +32,22 @@
 @class ViewController;
 
 @interface ListViewController : UIViewController<UITextFieldDelegate, UITableViewDelegate, UITableViewDataSource>
-{
-    UITextField *_myText;
+{    
     UITableView *_tableView;
-    NSString *str;
     NSString *filePath;
+    NSString *str;
     NSMutableArray *_objects;
 }
 
+@property (strong, nonatomic) IBOutlet UITextField *mySearch;
 @property (strong, nonatomic) IBOutlet UITableView *tableView;
-@property (strong, nonatomic) IBOutlet UITextField *myText;
-@property (strong, nonatomic) IBOutlet UILabel *myLabel;
 @property (strong, nonatomic) NSMutableArray *objects;
 @property (strong, nonatomic) NSString *filePath;
 
 @property (strong, nonatomic) id detailItem;
 @property (strong, nonatomic) ViewController *ViewController;
+@property (strong, nonatomic) IBOutlet UITextView *myTextView;
+
+-(NSInteger)supportedInterfaceOrientations; // Must return Orientation Mask
 
 @end

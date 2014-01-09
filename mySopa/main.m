@@ -2,7 +2,7 @@
 //  main.m
 //  mySopa
 //
-//  Created by 蘆原 郁 on 13/06/21.
+//  Created by 蘆原 郁 on 13/08/06.
 //  Copyright (c) 2013年 jp.go.aist.staff. All rights reserved.
 //
 

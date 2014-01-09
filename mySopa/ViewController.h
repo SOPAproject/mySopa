@@ -24,28 +24,19 @@
  SOFTWARE.
  
  */
+//
 
 #import <UIKit/UIKit.h>
-#import "SopaQueue.h"
-#import "scroller.h"
-#import <CoreMotion/CoreMotion.h>
-
-@protocol ViewDelegate <NSObject>
-@end
+#import "OpenGLView.h"
 
 @interface ViewController : UIViewController{
-    SopaQueue *player;
-    scroller *scrollview;
+    OpenGLView* _glView;
+    UIActivityIndicatorView *myIndicator;
 }
 
+@property (nonatomic, strong) IBOutlet OpenGLView *glView;
 @property (strong, nonatomic) id detailItem;
-@property (strong, nonatomic) IBOutlet UILabel *Info;
-@property (strong, nonatomic) IBOutlet UILabel *Segue;
-@property (strong, nonatomic) IBOutlet UISwitch *mtnSwitch;
-@property (strong) NSURLConnection *imageConn;
-@property (strong) NSMutableData *imageData;
-@property (strong) CMMotionManager *manager;
-
-- (IBAction)gyroOn:(id)sender;
+@property (strong)NSURLConnection *conn;
+@property (strong)UIProgressView *progressBar;
 
 @end

@@ -2,8 +2,8 @@
 //  AppDelegate.m
 //  mySopa
 //
-//  Created by 蘆原 郁 on 13/06/21.
-//  Copyright (c) 2013年 jp.go.aist.staff. All rights reserved.
+//  Created by Kaoru Ashihara on 13/10/03.
+//  Copyright (c) 2013, AIST. All rights reserved.
 //
 
 #import "AppDelegate.h"
@@ -41,6 +41,10 @@
 - (void)applicationWillTerminate:(UIApplication *)application
 {
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+}
+
+- (NSUInteger)application:(UIApplication *)application supportedInterfaceOrientationsForWindow:(UIWindow *)window  {
+    return UIInterfaceOrientationMaskAllButUpsideDown;
 }
 
 @end

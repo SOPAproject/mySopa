@@ -1,24 +1,27 @@
 //
 //  ListViewController.m
-//  sopaMonitor
+//  mySopa
 //
-//  Created by Kaoru Ashihara on 13/04/03.
+//  Created by Kaoru Ashihara on 13/10/03.
 //  Copyright (c) 2013, AIST. All rights reserved.
 //
 
 #import "ListViewController.h"
 
 @interface ListViewController ()
-
 @end
 
-@implementation ListViewController
+@implementation ListViewController{
+    CGRect textRect;
+    CGRect tableRect;
+}
 
-@synthesize myText = _myText;
+@synthesize mySearch = _mySearch;
 @synthesize tableView = _tableView;
-@synthesize myLabel = _myLabel;
 @synthesize objects = _objects;
+@synthesize myTextView = _myTextView;
 @synthesize filePath;
+
 
 - (id)initView
 {
@@ -34,7 +37,7 @@
     SInt16 sItemNum;
     [super viewDidLoad];
     
-    _myText.delegate = self;
+    _mySearch.delegate = self;
     _tableView.delegate = self;
     _tableView.dataSource = self;
     
@@ -44,35 +47,47 @@
     
     _objects = [[NSMutableArray alloc] initWithContentsOfFile:filePath];
     sItemNum = _objects.count;
-    if (sItemNum != 0) {
+
+    if(sItemNum != 0) {
         str = [_objects objectAtIndex:0];
     }
     else {
-        str = @"http://staff.aist.go.jp/ashihara-k/resource/sopa22k.sopa";
+        _objects = [NSMutableArray arrayWithObjects:@"http://staff.aist.go.jp/ashihara-k/resource/sopa_version2_22k.sopa",
+                     @"http://staff.aist.go.jp/ashihara-k/resource/v2demo22k.sopa",nil];
+        str = @"http://staff.aist.go.jp/ashihara-k/resource/sopa_version2_22k.sopa";
     }
     
     self.navigationItem.leftBarButtonItem = self.editButtonItem;
     UIBarButtonItem *addButton = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemAdd target:self action:@selector(insertNewObject:)];
     self.navigationItem.rightBarButtonItem = addButton;
     self.ViewController = (ViewController *)[[self.splitViewController.viewControllers lastObject] topViewController];
-    _myText.text = str;
-    _myLabel.textColor = [UIColor lightTextColor];
-    _myLabel.numberOfLines = 2;
-    _myLabel.text = @"sopaMonitor\nCopyright (c) 2013, AIST";
+    _mySearch.text = str;
+    tableRect = _tableView.frame;
     
+    _myTextView.editable = NO;
+    _myTextView.dataDetectorTypes = UIDataDetectorTypeLink;
+    _myTextView.textColor = [UIColor darkTextColor];
+    _myTextView.text = @"-mySopa- Copyright (c) 2013, AIST\nhttp://staff.aist.go.jp/ashihara-k/mySopa.html";
 }
 
 -(void)viewDidUnload{
     if(_objects){
         BOOL successful = [_objects writeToFile:filePath atomically:NO];
-        if(!successful)
-            NSLog(@"Failed to save data");
+        if(!successful){
+            UIAlertView *alertView = [[UIAlertView alloc]
+                                      initWithTitle : @"Data not saved"
+                                      message:@"Failed to save data!"
+                                      delegate : nil cancelButtonTitle : @"OK"
+                                      otherButtonTitles : nil];
+            [alertView show];
+        }
     }
 }
 
 - (void)didReceiveMemoryWarning
 {
     [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
 }
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated
@@ -91,9 +106,9 @@
         _objects = [[NSMutableArray alloc] init];
     }
     sNum = _objects.count;
-    str = _myText.text;
+    str = _mySearch.text;
     
-    [self.myText resignFirstResponder];
+    [self.mySearch resignFirstResponder];
     
     for(sCount = 0;sCount < sNum;sCount ++){
         NSIndexPath *indexPath = [NSIndexPath indexPathForRow:sCount inSection:0];
@@ -120,14 +135,18 @@
     }
     
     BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if(!successful)
-        NSLog(@"Failed to save data");
+    if(!successful){
+        UIAlertView *alertView = [[UIAlertView alloc]
+                                  initWithTitle : @"Data not savede"
+                                  message:@"Failed to save data!"
+                                  delegate : nil cancelButtonTitle : @"OK"
+                                  otherButtonTitles : nil];
+        [alertView show];
+    }
     
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
     [self.tableView selectRowAtIndexPath:indexPath animated:YES scrollPosition:UITableViewScrollPositionMiddle];
 }
-
-#pragma mark - Table view data source
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
 {
@@ -151,7 +170,7 @@
     strTitle = [[[object description] componentsSeparatedByString:@"/"] lastObject];
     
     cell.textLabel.text = strTitle;
-    [self.myText resignFirstResponder];
+    [self.mySearch resignFirstResponder];
     return cell;
 }
 
@@ -175,21 +194,35 @@
 // Override to support editing the table view.
 - (void)tableView:(UITableView *)tableView commitEditingStyle:(UITableViewCellEditingStyle)editingStyle forRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    [self.myText resignFirstResponder];
+    [self.mySearch resignFirstResponder];
     if (editingStyle == UITableViewCellEditingStyleDelete) {
-        // Delete the row from the data source
-        [_objects removeObjectAtIndex:indexPath.row]; // Delete item
-        [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+        if(_objects.count <= 1){
+            UIAlertView *alertView = [[UIAlertView alloc]
+                                      initWithTitle : @"Not editable"
+                                      message:@"You cannot delete the last item!"
+                                      delegate : nil cancelButtonTitle : @"OK"
+                                      otherButtonTitles : nil];
+            [alertView show];
+        }
+        else{
+            // Delete the row from the data source
+            [_objects removeObjectAtIndex:indexPath.row]; // Delete item
+            [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+        }
     }
     else if (editingStyle == UITableViewCellEditingStyleInsert) {
         // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
     }
     BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if(!successful)
-        NSLog(@"Failed to save data");
+    if(!successful){
+        UIAlertView *alertView = [[UIAlertView alloc]
+                                  initWithTitle : @"Data not savede"
+                                  message:@"Failed to save data!"
+                                  delegate : nil cancelButtonTitle : @"OK"
+                                  otherButtonTitles : nil];
+        [alertView show];
+    }
 }
-
-#pragma mark - Table view delegate
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -208,6 +241,7 @@
         NSDate *object = _objects[indexPath.row];
         ViewController *viewCon = segue.destinationViewController;
         
+//        [viewCon performSelector:@selector(setDetailItem:)withObject:object afterDelay:0.1];
         [viewCon setDetailItem:object];
     }
     
@@ -216,16 +250,32 @@
     id item = [_objects objectAtIndex:fromPath.row];
     [_objects removeObject:item];
     [_objects insertObject:item atIndex:toPath.row];
-    _myText.text = [_objects[toPath.row] description];
+    _mySearch.text = [_objects[toPath.row] description];
     
     BOOL successful = [_objects writeToFile:filePath atomically:NO];
-    if(!successful)
-        NSLog(@"Failed to save data");
+    if(!successful){
+        UIAlertView *alertView = [[UIAlertView alloc]
+                                  initWithTitle : @"Data not saved"
+                                  message:@"Failed to save data!"
+                                  delegate : nil cancelButtonTitle : @"OK"
+                                  otherButtonTitles : nil];
+        [alertView show];
+    }
     
-    _myLabel.textColor = [UIColor lightTextColor];
-    _myLabel.text = @"sopaMonitor\nCopyright 2013, AIST";
     self.navigationItem.leftBarButtonItem = self.editButtonItem;
     
+}
+
+- (BOOL)shouldAutorotate {
+    return YES;
+}
+
+- (NSInteger)supportedInterfaceOrientations {
+    return UIInterfaceOrientationMaskLandscape;
+}
+
+-(void)willAnimateRotationToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation duration:(NSTimeInterval)duration {
+
 }
 
 @end
