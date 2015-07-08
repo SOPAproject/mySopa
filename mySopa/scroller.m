@@ -2,8 +2,8 @@
 //  scroller.m
 //  mySopa
 //
-//  Created by Kaoru Ashihara on 13/10/03.
-//  Copyright (c) 2013, AIST. All rights reserved.
+//  Created by Kaoru Ashihara on 29 Mar. 2014
+//  Copyright (c) 2014, AIST. All rights reserved.
 //
 
 #import "scroller.h"

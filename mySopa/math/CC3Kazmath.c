@@ -582,8 +582,8 @@ int kmGaussJordan(kmMat4* a, kmMat4* b) {
             if (ipiv[j] != 1) {
                 for (k = 0; k < n; k++) {
                     if (ipiv[k] == 0) {
-                        if (abs(kmMatGet(a,j, k)) >= big) {
-                            big = abs(kmMatGet(a,j, k));
+                        if (fabsf(kmMatGet(a,j, k)) >= big) {
+                            big = fabsf(kmMatGet(a,j, k));
                             irow = j;
                             icol = k;
                         }

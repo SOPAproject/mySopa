@@ -17,7 +17,7 @@
 
 - (NSUInteger)supportedInterfaceOrientations
 {
-    if (![[self.viewControllers lastObject] isKindOfClass:NSClassFromString(@"ViewController")])
+    if (![[self.viewControllers lastObject] isKindOfClass:NSClassFromString(@"DetailViewController")])
     {
         return UIInterfaceOrientationMaskAllButUpsideDown;
     }

@@ -3,7 +3,7 @@
 //  mySopa
 //
 /*
- Copyright (c) 2013, AIST
+ Copyright (c) 2014, AIST
  
  Permission is hereby granted, free of charge, to any person obtaining a copy of
  this software and associated documentation files (the "Software"), to deal in
@@ -40,8 +40,8 @@
     sopaObject *player;
     scroller *scrollView;
     
-    GLuint _colorRenderBuffer;    
-    GLuint _depthRenderBuffer;    
+    GLuint _colorRenderBuffer;
+    GLuint _depthRenderBuffer;
     GLuint _floorTexture;
     GLuint _positionSlot;
     GLuint _colorSlot;
@@ -58,11 +58,18 @@
 @property BOOL isRotated;
 @property BOOL isManagerOn;
 @property BOOL isLoaded;
+@property BOOL isAsset;
+@property BOOL isSequel;
+@property BOOL isSS;
 @property UIImage *myImage;
 @property UIDeviceOrientation myOrientation;
 @property UInt32 nBytesRead;
 @property UInt32 nBytesWritten;
 @property SInt16 sFontSize;
+@property SInt16 iFirstJpg;
+@property SInt16 iFirstSopa;
+@property SInt16 iMilliSecIntvl;
+@property SInt16 nSR;                   // Sample rate
 @property long expectedLength;
 @property double dRoll;
 

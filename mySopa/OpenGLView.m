@@ -2,8 +2,8 @@
 //  OpenGLView.m
 //  mySopa
 //
-//  Created by Kaoru Ashihara on 13/10/03.
-//  Copyright (c) 2013, AIST. All rights reserved.
+//  Created by Kaoru Ashihara on 29 Mar. 2014
+//  Copyright (c) 2014, AIST. All rights reserved.
 //
 
 #import "OpenGLView.h"
@@ -12,6 +12,7 @@
 @implementation OpenGLView{
     NSString *labelText,*offText,*onText,*mtnText;
     NSMutableData *async_data;
+    NSURL *jpgURL;
     float fStamp;
     double dYaw;
     double dPitch;
@@ -19,9 +20,14 @@
     double dPan,dTilt;
     double dCurrentX,dCurrentY;
     BOOL isTerminatedByUser;
-    BOOL isBtnOn,isTiltOn,isPad,isPrepared;
+    BOOL isBtnOn,isPad,isPrepared;
+    BOOL isSearchJpg;
+    BOOL isImageLoading;
+    BOOL isImageReady;
+    UInt16 uPitchRoll;
+    UInt16 uJpgNum;
     SInt16 sWidth,sHeight;
-    SInt16 imageWidth;
+    SInt16 imageWidth,imageHeight;
     SInt16 sMotion;
     CADisplayLink* displayLink;
     CC3Vector vecVer;
@@ -31,6 +37,7 @@
     UILabel *myLabel;
     UILabel *mtnLabel,*tiltLabel;
     UIButton *mtnBtn,*tiltBtn;
+    GLubyte *spriteData;
 }
 
 @synthesize urlStr;
@@ -42,8 +49,14 @@
 @synthesize is3d;
 @synthesize isRotated;
 @synthesize isManagerOn;
-@synthesize isLoaded;
+@synthesize isAsset;
+@synthesize isSequel;
+@synthesize isSS;
 @synthesize sFontSize;
+@synthesize iFirstJpg;
+@synthesize iFirstSopa;
+@synthesize iMilliSecIntvl;
+@synthesize nSR;
 @synthesize expectedLength;
 @synthesize dRoll;
 
@@ -145,7 +158,7 @@ const GLubyte Indices[] = {
         }
     }
     if(!spriteImage){
-        [self prepareToExit];
+        //        [self prepareToExit];
         return 0;
     }
     
@@ -153,8 +166,9 @@ const GLubyte Indices[] = {
     size_t width = CGImageGetWidth(spriteImage);
     size_t height = CGImageGetHeight(spriteImage);
     imageWidth = width;
+    imageHeight = height;
     
-    GLubyte * spriteData = (GLubyte *) calloc(width*height*4, sizeof(GLubyte));
+    spriteData = (GLubyte *) calloc(width*height*4, sizeof(GLubyte));
     
     CGContextRef spriteContext = CGBitmapContextCreate(spriteData, width, height, 8, width*4, CGImageGetColorSpace(spriteImage), (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     
@@ -166,24 +180,26 @@ const GLubyte Indices[] = {
     // 4
     GLuint texName;
     glGenTextures(1, &texName);
+        
+    if(player.numBytesWritten == 0){
+        glBindTexture(GL_TEXTURE_2D, texName);
     
-    glBindTexture(GL_TEXTURE_2D, texName);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spriteData);
-    
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (int)width, (int)height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spriteData);
+        free(spriteData);
+        
+        dTilt = dPan = 0;
+        dCurrentX = dCurrentY = imageWidth;
+        [self openScroller];
+    }
     _myImage = nil;
     async_data = nil;
-    free(spriteData);
+//    isPrepared = YES;
+    isImageReady = NO;
     
-    isPrepared = YES;
-    
-    dTilt = dPan = 0;
-    dCurrentX = dCurrentY = imageWidth;
-    [self openScroller];
     return texName;
     
 }
@@ -196,11 +212,15 @@ const GLubyte Indices[] = {
     isManagerOn = NO;
     isBtnOn = NO;
     isPrepared = NO;
+    isImageLoading = NO;
+    isImageReady = NO;
+    isSequel = NO;
+    isSS = NO;
+    uJpgNum = 0;
     
     self = [super initWithFrame:frame];
     if(self){
-        if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad){
-            //      iPad
+        if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad){   //      iPad
             isPad = YES;
         }
         else{
@@ -216,16 +236,16 @@ const GLubyte Indices[] = {
             btnUnit = sHeight /12;
         dYaw = dPitch = 0;
         dRoll = 0;
-
+        
         mtnBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-        mtnBtn.frame = CGRectMake(sWidth * 4 / 5,sHeight * 3 / 4,btnUnit,btnUnit);
+        mtnBtn.frame = CGRectMake(sWidth * 4 / 5,sHeight * 5 / 6,btnUnit,btnUnit);
         mtnBtn.backgroundColor = [UIColor orangeColor];
         [mtnBtn setOpaque: YES];
         [mtnBtn setAlpha:0.25f];
         [mtnBtn addTarget:self action:@selector(btnOnOff:) forControlEvents:UIControlEventTouchDown];
         
         tiltBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-        tiltBtn.frame = CGRectMake(sWidth / 16,sHeight * 3 / 4,btnUnit,btnUnit);
+        tiltBtn.frame = CGRectMake(sWidth / 16,sHeight * 5 / 6,btnUnit,btnUnit);
         tiltBtn.backgroundColor = [UIColor yellowColor];
         [tiltBtn setOpaque:YES];
         [tiltBtn setAlpha:0.25f];
@@ -255,7 +275,7 @@ const GLubyte Indices[] = {
         player = [[sopaObject alloc]init];
         [player setIsCanceled:NO];
         [player setIStage:0];
-                
+        
         NSNotificationCenter* center;
         center = [NSNotificationCenter defaultCenter];
         [center addObserver:self selector:@selector(sopaReproductionFinished)
@@ -274,6 +294,8 @@ const GLubyte Indices[] = {
                        name:@"connectionProgress" object:player];
         [center addObserver:self selector:@selector(notifyReproduction)
                        name:@"reproductionProgress" object:player];
+        [center addObserver:self selector:@selector(notifyNewImage)
+                       name:@"getNewImage" object:player];
         
     }
     return  self;
@@ -283,33 +305,48 @@ const GLubyte Indices[] = {
     double dVal,dCos;
     float fY,fX,fZ;
     SInt16 sInt;
-    NSString *labelStr;
+    NSString *tmpStr;
+    NSURL *tmpUrl;
     
+    uJpgNum = iFirstJpg;
+    
+    player.urlStr = self.urlStr;
+    player.numSampleRate = nSR;
+    player.lChunkSize = expectedLength;
+    player.isSequel = isSequel;
+    player.isSS = isSS;
+    player.iFileNum = iFirstSopa;
+    player.iMilliSecIntvl = iMilliSecIntvl;
+    
+    tmpStr = [self.urlStr substringToIndex:self.urlStr.length - 7];
+    if(player.isSequel){
+        NSString *jpgStr = [tmpStr stringByAppendingFormat:@"%04u",uJpgNum];
+        tmpUrl = [NSURL URLWithString:jpgStr];
+        jpgURL = [tmpUrl URLByAppendingPathExtension:@"jpg"];
+    }
+    else{
+        tmpUrl = [[NSURL alloc]initWithString:self.urlStr];
+        NSURL *myURL = [tmpUrl URLByDeletingPathExtension];
+        jpgURL = [myURL URLByAppendingPathExtension:@"jpg"];
+    }
+
     mtnLabel = [[UILabel alloc]init];
-    labelStr = mtnText;
-    mtnLabel.text = labelStr;
-    UIFont *font = [UIFont systemFontOfSize:sFontSize];
-    NSLineBreakMode mode = NSLineBreakByWordWrapping;
-    CGSize size = [labelStr sizeWithFont:font forWidth:sWidth lineBreakMode:mode];
-    
-    if(isPad)
-        mtnLabel.frame = CGRectMake(sWidth * 7 / 10,sHeight * 11 / 16,size.width,size.height);
-    else
-        mtnLabel.frame = CGRectMake(sWidth * 7 / 10,sHeight * 11 / 16,size.width,size.height);
-    mtnLabel.textAlignment = NSTextAlignmentCenter;
+    mtnLabel.text = mtnText;
+    if(isPad){
+        mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 4 / 5,sHeight * 3 / 4,sWidth / 4,sHeight / 16)];
+        mtnLabel.textAlignment = NSTextAlignmentLeft;
+    }
+    else{
+        mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 7 / 10,sHeight * 3 / 4,sWidth / 3,sHeight / 16)];
+        mtnLabel.textAlignment = NSTextAlignmentCenter;
+    }
     mtnLabel.backgroundColor = [UIColor clearColor];
     mtnLabel.textColor = [UIColor lightTextColor];
     mtnLabel.shadowOffset = CGSizeMake(1,1);
     mtnLabel.shadowColor = [UIColor darkTextColor];
     
     tiltLabel = [[UILabel alloc]init];
-    labelStr = offText;
-    tiltLabel.text = offText;
-    size = [labelStr sizeWithFont:font forWidth:sWidth lineBreakMode:mode];
-    if(isPad)
-        tiltLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth / 16,sHeight * 11 / 16,size.width,size.height)];
-    else
-        tiltLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth / 16,sHeight * 11 / 16,size.width,size.height)];
+    tiltLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth / 16,sHeight * 3 / 4,sWidth,sHeight / 16)];
     tiltLabel.textAlignment = NSTextAlignmentLeft;
     tiltLabel.backgroundColor = [UIColor clearColor];
     tiltLabel.textColor = [UIColor lightTextColor];
@@ -396,18 +433,27 @@ const GLubyte Indices[] = {
 }
 
 -(void)tiltOnOff:(UIButton*)btn{
-    if(isTiltOn){
-        isTiltOn = NO;
+    if(uPitchRoll == 2){
+        uPitchRoll = 0;
         [tiltBtn setAlpha:0.25f];
         tiltLabel.text = offText;
     }
+    else if(uPitchRoll == 0){
+        uPitchRoll = 1;
+        [tiltBtn setAlpha:0.5f];
+        tiltLabel.text = @"Pitch is on";
+    }
     else{
-        isTiltOn = YES;
-        [tiltBtn setAlpha:0.75f];
-        if(isBtnOn)
+        if(isBtnOn){
+            uPitchRoll = 2;
+            [tiltBtn setAlpha:0.75f];
             tiltLabel.text = onText;
-        else
-            tiltLabel.text = @"Pitch is on";
+        }
+        else{
+            uPitchRoll = 0;
+            [tiltBtn setAlpha:0.25f];
+            tiltLabel.text = offText;
+        }
     }
 }
 
@@ -416,15 +462,22 @@ const GLubyte Indices[] = {
         isBtnOn = NO;
         [mtnBtn setAlpha:0.25f];
         mtnLabel.text = @"Self motion";
-        if(isTiltOn)
+        if(uPitchRoll > 0){
             tiltLabel.text = @"Pitch is on";
+            if(uPitchRoll == 2){
+                uPitchRoll = 1;
+            }
+            [tiltBtn setAlpha:0.5f];
+        }
     }
     else{
         isBtnOn = YES;
         [mtnBtn setAlpha:0.75f];
         mtnLabel.text = @"Gyro is on";
-        if(isTiltOn)
-            tiltLabel.text = @"Pitch, roll are on";
+        if(uPitchRoll == 2)
+            tiltLabel.text = onText;
+        else if(uPitchRoll == 1)
+            tiltLabel.text = @"Pitch is on";
     }
     [self gyroOnOff];
 }
@@ -444,9 +497,9 @@ const GLubyte Indices[] = {
 
 -(void)activateManager{
     double dMin;
-
+    
     dMin = M_PI / 32;
-
+    
     if(_manager.gyroAvailable){
         _manager.gyroUpdateInterval = 0.1;
         CMGyroHandler deviceMotionHandler;
@@ -457,7 +510,7 @@ const GLubyte Indices[] = {
             }
             double dElapsed = data.timestamp - fStamp;
             fStamp = data.timestamp;
-            if(isTiltOn){
+            if(uPitchRoll == 2){
                 if(fabs(data.rotationRate.x) > fabs(data.rotationRate.y)){
                     if(fabs(data.rotationRate.x) > fabs(data.rotationRate.z)){
                         if(fabs(data.rotationRate.x) > dMin){
@@ -507,6 +560,41 @@ const GLubyte Indices[] = {
                     }
                 }
             }
+            else if(uPitchRoll == 1){
+                if(fabs(data.rotationRate.x) < fabs(data.rotationRate.y)){
+                    if(fabs(data.rotationRate.y) > dMin){
+                        if(myOrientation == UIInterfaceOrientationPortrait){
+                            sMotion = 2;
+                            dYaw -= dElapsed * data.rotationRate.y;
+                        }
+                        else if(myOrientation == UIInterfaceOrientationLandscapeRight){
+                            sMotion = 1;
+                            dPitch += dElapsed * data.rotationRate.y;
+                        }
+                        else{
+                            sMotion = 1;
+                            dPitch -= dElapsed * data.rotationRate.y;
+                        }
+                    }
+                }
+                else{
+                    if(fabs(data.rotationRate.x) > dMin){
+                        if(myOrientation == UIInterfaceOrientationPortrait){
+                            sMotion = 1;
+                            dPitch -= dElapsed * data.rotationRate.x;
+                        }
+                        else if(myOrientation == UIInterfaceOrientationLandscapeRight){
+                            sMotion = 2;
+                            dYaw -= dElapsed * data.rotationRate.x;
+                        }
+                        else{
+                            sMotion = 2;
+                            dYaw += dElapsed * data.rotationRate.x;
+                        }
+                    }
+                }
+            }
+            
             else if(myOrientation == UIDeviceOrientationPortrait && fabs(data.rotationRate.y) > dMin){
                 sMotion = 2;
                 dYaw -= dElapsed * data.rotationRate.y;
@@ -519,7 +607,7 @@ const GLubyte Indices[] = {
                 sMotion = 2;
                 dYaw -= dElapsed * data.rotationRate.x;
             }
-
+            
         };
         [_manager startGyroUpdatesToQueue:[NSOperationQueue currentQueue] withHandler:deviceMotionHandler];
     }
@@ -528,15 +616,22 @@ const GLubyte Indices[] = {
 -(void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event{
     if(isPrepared){
         if([player isPlaying] == NO){
+            if(isSS && !isSearchJpg){
+                isSearchJpg = YES;
+                [self loadImage:jpgURL];
+            }
             NSString *tmpStr = [self.urlStr lastPathComponent];
             NSString *labelStr = [[NSString alloc]initWithFormat:@"Playing %@\nTo stop reproduction, tap on screen",tmpStr];
             labelText = labelStr;
+            
+            uJpgNum = iFirstJpg;
             myLabel.text = labelText;
-            expectedLength = nBytesWritten = nBytesRead = 0;
-            isLoaded = NO;
+            nBytesWritten = 0;
             player.urlStr = self.urlStr;
+            player.iSize = 0;
             isTerminatedByUser = NO;
-            [player play];                      // Start reproduction
+            [player setIsPlaying:YES];                      // Start reproduction
+            [player start];
         }
         else{
             isTerminatedByUser = YES;
@@ -576,9 +671,9 @@ const GLubyte Indices[] = {
 - (void)setupDepthBuffer {
     glGenRenderbuffers(1, &_depthRenderBuffer);
     glBindRenderbuffer(GL_RENDERBUFFER, _depthRenderBuffer);
-
+    
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, self.frame.size.width, self.frame.size.height);
-//    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, self.frame.size.height, self.frame.size.width);
+    //    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, self.frame.size.height, self.frame.size.width);
 }
 
 - (void)setupFrameBuffer {
@@ -602,25 +697,27 @@ const GLubyte Indices[] = {
     dRoll = dPitch = dYaw = 0;
     
     vecSoundHor = CC3VectorMake(1,0,0);
-    vecSoundUp = CC3VectorMake(0,1,0);
     vecSoundDepth = CC3VectorMake(0,0,1);
+    vecSoundUp = CC3VectorMake(0,1,0);
     
-    vecHor = CC3VectorCross(vecUp,vecAt);
+//    if(!CC3VectorsAreEqual(vecAt,vecTop))
+//        vecHor = CC3VectorCross(vecTop,vecAt);
     
-    if(sMotion == 1){
+    if(sMotion == 1){                       // Pitch changed
         vecAt = [self vecRotate:vecAt aroundVec:vecHor byRad:-dPt];
         vecUp = [self vecRotate:vecUp aroundVec:vecHor byRad:-dPt];
     }
-    else if(sMotion == 2){
+    else if(sMotion == 2){                  // Yaw changed
         vecAt = [self vecRotate:vecAt aroundVec:vecUp byRad:dYw];
+        vecHor = [self vecRotate:vecHor aroundVec:vecUp byRad:dYw];
     }
-    else if(sMotion == 3){
+    else if(sMotion == 3){                  // Roll changed
         vecHor = [self vecRotate:vecHor aroundVec:vecAt byRad:dRl];
         vecUp = [self vecRotate:vecUp aroundVec:vecAt byRad:dRl];
     }
-
+    
     for(sInt = 0;sInt < 127;sInt ++){
-
+        
         if(sMotion == 1)                    // Pitch changed
             vecDir[sInt] = [self vecRotate:vecDir[sInt] aroundVec:vecSoundHor byRad:dPt];
         else if(sMotion == 2)               // Yaw changed
@@ -756,7 +853,7 @@ const GLubyte Indices[] = {
         sVal = 253 - Numero[1];
         cByte = sVal & 0xff;
         [[player dirID]replaceBytesInRange:NSMakeRange(iByte,sizeof(Byte)) withBytes:&cByte];
-
+        
     }
     sMotion = 0;
     
@@ -764,16 +861,16 @@ const GLubyte Indices[] = {
     glClear(GL_COLOR_BUFFER_BIT);
     
     CC3GLMatrix *projection = [CC3GLMatrix matrix];
-
+    
     h = 4.0f * self.frame.size.height / self.frame.size.width;
-    [projection populateFromFrustumLeft:-2 andRight:2 andBottom:-h/2 andTop:h/2 andNear:2 andFar:14];
+    [projection populateFromFrustumLeft:-2 andRight:2 andBottom:-h / 2 andTop:h / 2 andNear:2 andFar:14];
     glUniformMatrix4fv(_projectionUniform, 1, 0, projection.glMatrix);
     
     CC3GLMatrix *modelView = [CC3GLMatrix matrix];
     [modelView populateToLookAt:vecAt withEyeAt:CC3VectorMake(0, 0, 0) withUp:vecUp];
     
     glUniformMatrix4fv(_modelViewUniform, 1, 0, modelView.glMatrix);
-
+    
     glViewport(0,0,sWidth,sHeight);
     
     glVertexAttribPointer(_positionSlot, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
@@ -783,7 +880,15 @@ const GLubyte Indices[] = {
                           sizeof(Vertex), (GLvoid*) (sizeof(float) * 7));
     
     glActiveTexture(GL_TEXTURE0);
-//    glBindTexture(GL_TEXTURE_2D, _floorTexture);
+    
+    if(player.isImageUpdate){
+        glActiveTexture(GL_TEXTURE0);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, imageWidth, imageHeight, GL_RGBA, GL_UNSIGNED_BYTE, spriteData);
+        free(spriteData);
+        player.isImageUpdate = NO;
+        myLabel.text = labelText;
+    }
+    
     glUniform1i(_textureUniform, 0);
     
     glDrawElements(GL_TRIANGLES, sizeof(Indices)/sizeof(Indices[0]), GL_UNSIGNED_BYTE, 0);
@@ -804,7 +909,7 @@ const GLubyte Indices[] = {
     
     // 3
     const char * shaderStringUTF8 = [shaderString UTF8String];
-    int shaderStringLength = [shaderString length];
+    int shaderStringLength = (int)[shaderString length];
     glShaderSource(shaderHandle, 1, &shaderStringUTF8, &shaderStringLength);
     
     // 4
@@ -816,8 +921,8 @@ const GLubyte Indices[] = {
     if (compileSuccess == GL_FALSE) {
         GLchar messages[256];
         glGetShaderInfoLog(shaderHandle, sizeof(messages), 0, &messages[0]);
-//        NSString *messageString = [NSString stringWithUTF8String:messages];
-//        NSLog(@"%@", messageString);
+        //        NSString *messageString = [NSString stringWithUTF8String:messages];
+        //        NSLog(@"%@", messageString);
         [self prepareToExit];
     }
     
@@ -842,8 +947,8 @@ const GLubyte Indices[] = {
     if (linkSuccess == GL_FALSE) {
         GLchar messages[256];
         glGetProgramInfoLog(programHandle, sizeof(messages), 0, &messages[0]);
-//        NSString *messageString = [NSString stringWithUTF8String:messages];
-//        NSLog(@"%@", messageString);
+        //        NSString *messageString = [NSString stringWithUTF8String:messages];
+        //        NSLog(@"%@", messageString);
         [self prepareToExit];
     }
     
@@ -930,7 +1035,7 @@ const GLubyte Indices[] = {
 
 -(void)errorDetection{
     myLabel.text = @"mySopa failed to load data";
-
+    
     if(player.isPlaying){
         [player setIsPlaying:NO];
         [player stop:NO];                  // Stop reproduction
@@ -942,7 +1047,7 @@ const GLubyte Indices[] = {
         [player setIsPlaying:NO];
     
     myLabel.text = @"mySopa failed to load data";
-
+    
     NSNotification* notification;
     notification = [NSNotification notificationWithName:@"URLError" object:self];
     NSNotificationCenter* center;
@@ -954,7 +1059,7 @@ const GLubyte Indices[] = {
 
 -(void)fileError{
     myLabel.text = @"mySopa failed to load data";
-
+    
     NSNotification* notification;
     notification = [NSNotification notificationWithName:@"URLError" object:self];
     NSNotificationCenter* center;
@@ -965,34 +1070,45 @@ const GLubyte Indices[] = {
 }
 
 -(void)setupDatabase{
-    NSRange rang = [self.urlStr rangeOfString:@"://"];
+    NSURL *tmUrl = [[NSURL alloc]initWithString:self.urlStr];
+    NSURL *tmpUrl = tmUrl.URLByDeletingPathExtension;
+    NSURL *newUrl = [tmpUrl URLByAppendingPathExtension:@"jpg"];
+    NSString *newStr = [[NSString alloc]initWithString:newUrl.absoluteString];
     [player setIStage:0];
-    player.urlStr = self.urlStr;
+    
     mtnLabel.font = [UIFont systemFontOfSize:sFontSize];
     tiltLabel.font = [UIFont systemFontOfSize:sFontSize];
     if(is3d){
-        [tiltBtn setAlpha:0.75f];
+        [tiltBtn setAlpha:0.5f];
         tiltLabel.text = @"Pitch is on";
-        isTiltOn = YES;
+        uPitchRoll = 1;
     }
     else{
         [tiltBtn setAlpha:0.25f];
         tiltLabel.text = offText;
-        isTiltOn = NO;
+        uPitchRoll = 0;
     }
-    if(rang.location == NSNotFound){
+    if(isAsset){
+        player.isAsset = YES;
         player.isFromDir = YES;
-        _floorTexture = [self setupTexture:@"default_cube.png"];
+        _floorTexture = [self setupTexture:newStr];
+        if(_floorTexture == 0){
+            newStr = [newUrl lastPathComponent];
+            _floorTexture = [self setupTexture:newStr];
+            if(_floorTexture == 0)
+                _floorTexture = [self setupTexture:@"default_cube.png"];
+        }
         [player performSelector:@selector(loadDatabaseFromDir) withObject:nil afterDelay:0.1];
     }
     else{
+        player.isAsset = NO;
         player.isFromDir = NO;
         [player performSelector:@selector(loadDatabase) withObject:nil afterDelay:0.1];
     }
 }
 
 -(void)databaseReady{
-
+    
     labelText = [[NSString alloc]initWithFormat:@"%@\nTap on screen to start reproduction",self.urlStr];
     
     myLabel = [[UILabel alloc]initWithFrame:CGRectMake(0,0,sWidth,sHeight / 4)];
@@ -1006,15 +1122,14 @@ const GLubyte Indices[] = {
     myLabel.shadowColor = [UIColor darkTextColor];
     
     if(!player.isFromDir){
-        NSURL *url = [[NSURL alloc]initWithString:self.urlStr];
-        NSURL *tmpUrl = url.URLByDeletingPathExtension;
-        NSURL *newUrl = [tmpUrl URLByAppendingPathExtension:@"png"];
-        [self loadImage:newUrl];
+        isSearchJpg = YES;
+        [self loadImage:jpgURL];
     }
     else{
         myLabel.shadowOffset = CGSizeMake(1,1);
         myLabel.shadowColor = [UIColor darkTextColor];
         if(_manager.gyroAvailable){
+            mtnLabel.text = @"Self motion";
             [self addSubview:mtnBtn];
             [self addSubview:mtnLabel];
         }
@@ -1031,31 +1146,78 @@ const GLubyte Indices[] = {
         [center postNotification:notification];
         
         [self setupDisplayLink];
+        [player play];
+        isPrepared = YES;
     }
 }
 
 -(void)loadImage:(NSURL *)url {
-    NSURLConnection *conn;
     
-//    NSURLRequest *req = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:30.0f];
-    NSURLRequest *req = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0f];
-    conn = [[NSURLConnection alloc] initWithRequest:req delegate:self];
-    
-    if (conn==nil) {
-        myLabel.text = @"mySopa failed to load data";
-        
-        NSNotification* notification;
-        notification = [NSNotification notificationWithName:@"imageError" object:self];
-        NSNotificationCenter* center;
-        center = [NSNotificationCenter defaultCenter];
-        
-        // Post notification
-        [center postNotification:notification];
-    }
+    isImageLoading = YES;
+//    NSURLRequest *req = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0f];
+    NSURLRequest *req = [NSURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:3.0f];
+    _imageConn = [[NSURLConnection alloc] initWithRequest:req delegate:self];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
-    async_data = [[NSMutableData alloc] initWithLength:0];
+    int statusCode = (int)[((NSHTTPURLResponse *)response) statusCode];
+    NSURL *tmpUrl;
+    NSURL *newUrl;
+    
+    if (statusCode == 404){
+        isImageLoading = NO;
+        [connection cancel];
+
+        if(isSearchJpg && !player.isSequel){
+            isSearchJpg = NO;
+            if(isSS && player.isPlaying){
+                uJpgNum = 0;
+            }
+            else{
+                NSURL *url = [[NSURL alloc]initWithString:self.urlStr];
+                tmpUrl = url.URLByDeletingPathExtension;
+                newUrl = [tmpUrl URLByAppendingPathExtension:@"png"];
+                NSURLRequest *req = [NSURLRequest requestWithURL:newUrl cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:30.0f];
+                _imageConn = [[NSURLConnection alloc] initWithRequest:req delegate:self];
+                if(_imageConn == nil){
+                    myLabel.text = @"mySopa failed to load data";
+                    
+                    NSNotification* notification;
+                    notification = [NSNotification notificationWithName:@"imageError" object:self];
+                    NSNotificationCenter* center;
+                    center = [NSNotificationCenter defaultCenter];
+                    
+                    // Post notification
+                    [center postNotification:notification];
+                }
+            }
+        }
+        else{
+            if(isSS)
+                myLabel.text = @"Image not found";
+            else if(!player.isSequel || uJpgNum == 0){
+                myLabel.text = @"Image file not found";
+                NSNotification* notification;
+                notification = [NSNotification notificationWithName:@"imageError" object:self];
+                NSNotificationCenter* center;
+                center = [NSNotificationCenter defaultCenter];
+                
+                // Post notification
+                [center postNotification:notification];
+            }
+            else if(isSequel){
+                uJpgNum = 0;
+                NSString *newStr = jpgURL.absoluteString;
+                NSString *tmpStr = [newStr substringToIndex:self.urlStr.length - 7];
+                NSString *jpgStr = [tmpStr stringByAppendingFormat:@"%04u",uJpgNum];
+                tmpUrl = [NSURL URLWithString:jpgStr];
+                jpgURL = [tmpUrl URLByAppendingPathExtension:@"jpg"];
+                [self loadImage:jpgURL];
+            }
+        }
+    }
+    else
+        async_data = [[NSMutableData alloc] initWithLength:0];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
@@ -1064,42 +1226,63 @@ const GLubyte Indices[] = {
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
     myLabel.text = @"mySopa failed to load data";
-    
-    NSNotification* notification;
-    notification = [NSNotification notificationWithName:@"imageError" object:self];
-    NSNotificationCenter* center;
-    center = [NSNotificationCenter defaultCenter];
-    
-    // Post notification
-    [center postNotification:notification];
+    isImageLoading = NO;    
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection{
     
-    _myImage = [UIImage imageWithData:async_data];
-
-    _floorTexture = [self setupTexture:@"default_cube.png"];
-    if(_manager.gyroAvailable){
-        [self addSubview:mtnBtn];
-        [self addSubview:mtnLabel];
+    isImageLoading = NO;
+    if([self dataIsValidJPEG:async_data] || !isSearchJpg){
+        isImageReady = YES;
+        _myImage = [[UIImage alloc]initWithData:async_data];
+        _floorTexture = [self setupTexture:@"default_cube.png"];
+        
+        if(player.numBytesWritten > 0)
+            player.isImageUpdate = YES;
+        
+        if(player.numBytesWritten > 0){
+            return;
+        }
+        if(_manager.gyroAvailable){
+            mtnLabel.text = @"Self motion";
+            [self addSubview:mtnBtn];
+            [self addSubview:mtnLabel];
+        }
+        [self addSubview:tiltLabel];
+        [self addSubview:tiltBtn];
+        
+        NSNotification* notification;
+        notification = [NSNotification notificationWithName:@"readyToGo" object:self];
+        NSNotificationCenter* center;
+        center = [NSNotificationCenter defaultCenter];
+        
+        // Post notification
+        [center postNotification:notification];
+        
+        myLabel.shadowOffset = CGSizeMake(1,1);
+        myLabel.shadowColor = [UIColor darkTextColor];
+        
+        [self addSubview:myLabel];
+        [self setupDisplayLink];
+        if(!player.isPlaying){
+            [player play];
+            isPrepared = YES;
+        }
     }
-    [self addSubview:tiltLabel];
-    [self addSubview:tiltBtn];
+    
+}
 
-    NSNotification* notification;
-    notification = [NSNotification notificationWithName:@"readyToGo" object:self];
-    NSNotificationCenter* center;
-    center = [NSNotificationCenter defaultCenter];
+-(BOOL)dataIsValidJPEG:(NSData *)data
+{
+    if (!data || data.length < 2) return NO;
     
-    // Post notification
-    [center postNotification:notification];
-
-    myLabel.shadowOffset = CGSizeMake(1,1);
-    myLabel.shadowColor = [UIColor darkTextColor];
+    NSInteger totalBytes = data.length;
+    const char *bytes = (const char*)[data bytes];
     
-    [self addSubview:myLabel];
-    [self setupDisplayLink];
-    
+    return (bytes[0] == (char)0xff &&
+            bytes[1] == (char)0xd8 &&
+            bytes[totalBytes-2] == (char)0xff &&
+            bytes[totalBytes-1] == (char)0xd9);
 }
 
 -(void)sopaInfo{
@@ -1109,8 +1292,8 @@ const GLubyte Indices[] = {
     NSString *labelStr;
     UInt32 uVal = player.numBytesWritten;
     
+    nBytesWritten = nBytesRead = 0;
     if(isTerminatedByUser){
-        nBytesWritten = nBytesRead = 0;
         NSNotification* notification;
         notification = [NSNotification notificationWithName:@"reproductionProgress" object:self];
         NSNotificationCenter* center;
@@ -1119,13 +1302,21 @@ const GLubyte Indices[] = {
         // Post notification
         [center postNotification:notification];
         
-        labelStr = [[NSString alloc]initWithFormat:@"%lu bytes reproduced\nReproduction terminated",uVal];
+        labelStr = [[NSString alloc]initWithFormat:@"%u bytes reproduced\nReproduction terminated",(unsigned int)uVal];
     }
     else{
-        labelStr = [[NSString alloc]initWithFormat:@"%lu bytes reproduced\nReproduction finished",uVal];
+        labelStr = [[NSString alloc]initWithFormat:@"%u bytes reproduced\nReproduction completed",(unsigned int)uVal];
     }
+    if(isSearchJpg)
+        isSearchJpg = NO;
     labelText = labelStr;
     myLabel.text = labelText;
+    player.isPlaying = NO;
+    [_imageConn cancel];
+    if(isSS){
+        player.iFileNum = iFirstSopa;
+//        uJpgNum = iFirstJpg;
+    }
 }
 
 -(void)openScroller{
@@ -1135,7 +1326,7 @@ const GLubyte Indices[] = {
     scrollView.contentSize = CGSizeMake(imageWidth * 3,imageWidth * 3);
     scrollView.showsHorizontalScrollIndicator = NO;
     scrollView.showsVerticalScrollIndicator = NO;
-    scrollView.bounces = NO;    
+    scrollView.bounces = NO;
     scrollView.contentOffset = CGPointMake(imageWidth,imageWidth);
     [scrollView setDelegate:(id)self];
     
@@ -1176,7 +1367,7 @@ const GLubyte Indices[] = {
             }
             point = [sender contentOffset];
             dCurrentY = point.y;
-            if(isTiltOn){
+            if(uPitchRoll > 0){
                 sMotion = 1;
                 dTilt += dDifY * M_PI * 2 / (double)imageWidth;
                 dPitch += dTilt;
@@ -1210,19 +1401,60 @@ const GLubyte Indices[] = {
             }
             point = [sender contentOffset];
             dCurrentY = point.y;
-            if(isTiltOn){
+            if(uPitchRoll > 0){
                 sMotion = 1;
                 dTilt += dDifY * M_PI * 2 / (double)imageWidth;
                 dPitch += dTilt;
                 dTilt = 0;
             }
         }
-    }   
+    }
+}
+
+-(void)notifyNewImage{
+    NSURL *url = [[NSURL alloc]initWithString:[player urlStr]];
+    NSURL *tmpUrl = url.URLByDeletingPathExtension;
+    NSURL *newUrl;
+    if(!player.isSequel){
+        if(!isSS)
+            return;
+        uJpgNum ++;
+        NSString *newStr = [tmpUrl absoluteString];
+        NSString *formattedStr = [NSString stringWithFormat:@"%04u",(unsigned int)uJpgNum];
+        tmpUrl = [NSURL URLWithString:[newStr stringByAppendingString:formattedStr]];
+        newUrl = [tmpUrl URLByAppendingPathExtension:@"jpg"];
+    }
+    else{
+        if(player.isNewLoop){
+            uJpgNum = 0;
+            player.isNewLoop = NO;
+        }
+        else
+            uJpgNum ++;
+        NSString *newStr = jpgURL.absoluteString;
+        NSString *tmpStr = [newStr substringToIndex:self.urlStr.length - 7];
+        NSString *jpgStr = [tmpStr stringByAppendingFormat:@"%04u",uJpgNum];
+        tmpUrl = [NSURL URLWithString:jpgStr];
+        jpgURL = [tmpUrl URLByAppendingPathExtension:@"jpg"];
+        newUrl = jpgURL;
+    }
+//    NSLog(@"%@",newUrl.absoluteString);
+    
+    if(isAsset){
+        NSString *imagePath = [[NSBundle mainBundle] pathForResource:[newUrl absoluteString] ofType:@"jpg"];
+        _myImage = [UIImage imageWithData:[NSData dataWithContentsOfFile:imagePath]];
+        if(_myImage == nil)
+            isImageLoading = NO;
+        else
+            _floorTexture = [self setupTexture:[newUrl absoluteString]];
+    }
+    else if(isSearchJpg && !isImageLoading)
+        [self loadImage:newUrl];
 }
 
 -(void)notifyProgress{
     if(expectedLength <= 0)
-        expectedLength = player.expectedLength;
+        expectedLength = (long)player.expectedLength;
     nBytesRead = player.nBytesRead;
     
     NSNotification* notification;
@@ -1232,19 +1464,18 @@ const GLubyte Indices[] = {
     
     // Post notification
     [center postNotification:notification];
+    
 }
 
 -(void)notifyReproduction{
-    nBytesWritten = player.numBytesWritten;
-    isLoaded = player.isLoaded;
-    
-    NSNotification* notification;
-    notification = [NSNotification notificationWithName:@"reproductionProgress" object:self];
-    NSNotificationCenter* center;
-    center = [NSNotificationCenter defaultCenter];
-    
-    // Post notification
-    [center postNotification:notification];
+    nBytesWritten = (UInt32)player.lBytesDone;
+
+    if(!player.isProceed){
+        NSString *tmpStr = [player.urlStr lastPathComponent];
+        NSString *labelStr = [[NSString alloc]initWithFormat:@"Playing %@\nTo stop reproduction, tap on screen",tmpStr];
+        labelText = labelStr;
+        
+    }
 }
 
 -(void)prepareToExit{
@@ -1255,52 +1486,52 @@ const GLubyte Indices[] = {
                               otherButtonTitles : nil];
     [alertView show];
     myLabel.text = @"Operation was terminated by an error";
-//    exit(1);
+    //    exit(1);
 }
 
 /*
-- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
-{
-    [self startDisplayLinkIfNeeded];
-}
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
-{
-    if (!decelerate) {
-        [self stopDisplayLink];
-    }
-}
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
-{
-    [self stopDisplayLink];
-}
-
-#pragma mark Display Link
-
-- (void)startDisplayLinkIfNeeded
-{
-    if (!displayLink) {
-        // do not change the method it calls as its part of the GLKView
-        displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(display)];
-        [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:UITrackingRunLoopMode];
-    }
-}
-
-- (void)stopDisplayLink
-{
-    [displayLink invalidate];
-    displayLink = nil;
-}   */
+ - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+ {
+ [self startDisplayLinkIfNeeded];
+ }
+ 
+ - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+ {
+ if (!decelerate) {
+ [self stopDisplayLink];
+ }
+ }
+ 
+ - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
+ {
+ [self stopDisplayLink];
+ }
+ 
+ #pragma mark Display Link
+ 
+ - (void)startDisplayLinkIfNeeded
+ {
+ if (!displayLink) {
+ // do not change the method it calls as its part of the GLKView
+ displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(display)];
+ [displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:UITrackingRunLoopMode];
+ }
+ }
+ 
+ - (void)stopDisplayLink
+ {
+ [displayLink invalidate];
+ displayLink = nil;
+ }   */
 
 -(BOOL)finalizeView{
-    if([player isPlaying])
-        [player stop:YES];
-    else{
-        [player cancelLoading];
-        [player setIsCanceled:YES];
-    }
-    player = nil;
+    [player stop:YES];
+    [player cancelLoading];
+    [player setIsCanceled:YES];
+    [player finalize];
+    
+    if(_imageConn != nil)
+        [_imageConn cancel];
     [displayLink removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
     [displayLink invalidate];
     

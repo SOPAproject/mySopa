@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "0500"
+   LastUpgradeVersion = "0510"
    version = "1.3">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "302D834B17B11832006B3056"
+               BlueprintIdentifier = "308D282418E5875100B0490F"
                BuildableName = "mySopa.app"
                BlueprintName = "mySopa"
                ReferencedContainer = "container:mySopa.xcodeproj">
@@ -28,11 +28,21 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       buildConfiguration = "Debug">
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "308D285018E5875100B0490F"
+               BuildableName = "mySopaTests.xctest"
+               BlueprintName = "mySopaTests"
+               ReferencedContainer = "container:mySopa.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "302D834B17B11832006B3056"
+            BlueprintIdentifier = "308D282418E5875100B0490F"
             BuildableName = "mySopa.app"
             BlueprintName = "mySopa"
             ReferencedContainer = "container:mySopa.xcodeproj">
@@ -51,7 +61,7 @@
       <BuildableProductRunnable>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "302D834B17B11832006B3056"
+            BlueprintIdentifier = "308D282418E5875100B0490F"
             BuildableName = "mySopa.app"
             BlueprintName = "mySopa"
             ReferencedContainer = "container:mySopa.xcodeproj">
@@ -69,7 +79,7 @@
       <BuildableProductRunnable>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "302D834B17B11832006B3056"
+            BlueprintIdentifier = "308D282418E5875100B0490F"
             BuildableName = "mySopa.app"
             BlueprintName = "mySopa"
             ReferencedContainer = "container:mySopa.xcodeproj">
@@ -77,7 +87,7 @@
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
-      buildConfiguration = "Debug">
+      buildConfiguration = "Release">
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"

@@ -3,7 +3,7 @@
 //  mySopa
 //
 /*
- Copyright (c) 2013, AIST
+ Copyright (c) 2015, AIST
  
  Permission is hereby granted, free of charge, to any person obtaining a copy of
  this software and associated documentation files (the "Software"), to deal in
@@ -36,6 +36,7 @@
 }
 
 @property UInt32 ExtBufSize;
+@property UInt32 numIntvl;
 @property UInt32 numBytesWritten;
 @property UInt32 numOffset;
 @property UInt32 nBytesRead;
@@ -46,9 +47,18 @@
 @property BOOL isPlaying;
 @property BOOL isCanceled;
 @property BOOL isFromDir;
+@property BOOL isAsset;
+@property BOOL isSequel;
+@property BOOL isSS;
+@property BOOL isImageUpdate;
+@property BOOL isNewLoop;
+@property BOOL isProceed;
+@property BOOL isBeginning;
 @property SInt16 iSize;
 @property SInt16 iOverlapFactor;
 @property SInt16 iStage;
+@property SInt16 iFileNum;
+@property SInt16 iMilliSecIntvl;
 @property UInt16 iDirNum;
 @property (strong)NSURLConnection *myConn;
 @property (strong)NSURLConnection *databaseConn;
@@ -56,8 +66,13 @@
 @property UInt32 numSampleRate;
 @property UInt32 numPacketsToRead;
 @property long long expectedLength;
+@property long lChunkSize;
+@property long lBytesDone;
 @property NSMutableData *dirID;
 @property NSMutableData *dilID;
+@property NSMutableData *sStream;
+@property NSMutableData *ResultLeft;
+@property NSMutableData *ResultRight;
 
 -(void)play;
 -(void)loadDatabase;
@@ -65,6 +80,8 @@
 -(void)cancelLoading;
 -(void)prepareSopaQueue;
 -(void)stop:(BOOL)shouldStopImmediate;
+-(void)start;
+-(void)finalize;
 
 -(SInt16)inputData:(UInt32)nNum asByte:(BOOL)isByte;
 -(SInt16)convertDir:(SInt16)dir;

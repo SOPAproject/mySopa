@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="5056" systemVersion="13F34" targetRuntime="iOS.CocoaTouch.iPad" propertyAccessControl="none" useAutolayout="YES" initialViewController="RMx-3f-FxP">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="3733"/>
+    </dependencies>
+    <scenes>
+        <!--Navigation Controller-->
+        <scene sceneID="pY4-Hu-kfo">
+            <objects>
+                <navigationController id="RMx-3f-FxP" sceneMemberID="viewController">
+                    <navigationBar key="navigationBar" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" alpha="0.40000000000000002" contentMode="scaleToFill" id="Pmd-2v-anx">
+                        <autoresizingMask key="autoresizingMask"/>
+                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="0Tu-74-Mpi" kind="relationship" relationship="rootViewController" id="gM9-Jc-4OT"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="8fS-aE-onr" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-8" y="-631"/>
+        </scene>
+        <!--Master View Controller-->
+        <scene sceneID="xYa-tu-Xwi">
+            <objects>
+                <viewController id="0Tu-74-Mpi" userLabel="Master View Controller" customClass="MasterViewController" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="D70-qv-SaM"/>
+                        <viewControllerLayoutGuide type="bottom" id="u0z-Yu-Ofk"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="KPG-Wv-sEI">
+                        <rect key="frame" x="0.0" y="0.0" width="768" height="1024"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Enter URL of the SOPA file" minimumFontSize="20" translatesAutoresizingMaskIntoConstraints="NO" id="1LR-DH-9VW">
+                                <rect key="frame" x="20" y="72" width="728" height="30"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <color key="backgroundColor" red="0.94117647058823528" green="0.98039215686274506" blue="0.94117647058823528" alpha="1" colorSpace="calibratedRGB"/>
+                                <color key="textColor" red="0.12549019610000001" green="0.50196078430000002" blue="0.25098039220000001" alpha="1" colorSpace="calibratedRGB"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="18"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" keyboardDismissMode="interactive" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="44" sectionHeaderHeight="22" sectionFooterHeight="22" translatesAutoresizingMaskIntoConstraints="NO" id="p8v-gh-HXa">
+                                <rect key="frame" x="20" y="110" width="728" height="818"/>
+                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                                <prototypes>
+                                    <tableViewCell contentMode="scaleToFill" selectionStyle="default" indentationWidth="10" reuseIdentifier="myCell" id="q8I-5s-rwd">
+                                        <rect key="frame" x="0.0" y="22" width="728" height="44"/>
+                                        <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                        <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" tableViewCell="q8I-5s-rwd" id="atV-dd-pca">
+                                            <rect key="frame" x="0.0" y="0.0" width="728" height="43"/>
+                                            <autoresizingMask key="autoresizingMask"/>
+                                        </tableViewCellContentView>
+                                    </tableViewCell>
+                                </prototypes>
+                            </tableView>
+                            <textView clipsSubviews="YES" multipleTouchEnabled="YES" alpha="0.80000000000000004" contentMode="scaleToFill" showsHorizontalScrollIndicator="NO" editable="NO" text="https://staff.aist.go.jp/ashihara-k/mySopa.html" textAlignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="xfR-LR-4pm">
+                                <rect key="frame" x="20" y="936" width="728" height="68"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                                <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
+                                <color key="textColor" red="0.19607843459999999" green="0.30980393290000002" blue="0.52156865600000002" alpha="1" colorSpace="calibratedRGB"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="18"/>
+                                <textInputTraits key="textInputTraits" autocapitalizationType="sentences"/>
+                            </textView>
+                        </subviews>
+                        <color key="backgroundColor" red="0.89705141129999999" green="1" blue="0.75337071570000003" alpha="1" colorSpace="calibratedRGB"/>
+                        <constraints>
+                            <constraint firstAttribute="trailing" secondItem="1LR-DH-9VW" secondAttribute="trailing" constant="20" symbolic="YES" id="DAz-sM-yqd"/>
+                            <constraint firstAttribute="bottom" secondItem="xfR-LR-4pm" secondAttribute="bottom" constant="20" symbolic="YES" id="EaU-rx-WDY"/>
+                            <constraint firstItem="xfR-LR-4pm" firstAttribute="leading" secondItem="p8v-gh-HXa" secondAttribute="leading" id="R3M-EX-o6y"/>
+                            <constraint firstItem="xfR-LR-4pm" firstAttribute="top" secondItem="p8v-gh-HXa" secondAttribute="bottom" constant="8" id="SS2-Lc-B3e"/>
+                            <constraint firstItem="1LR-DH-9VW" firstAttribute="leading" secondItem="KPG-Wv-sEI" secondAttribute="leading" constant="20" symbolic="YES" id="Trq-qS-TXF"/>
+                            <constraint firstItem="u0z-Yu-Ofk" firstAttribute="top" secondItem="p8v-gh-HXa" secondAttribute="bottom" constant="96" id="Ugr-x3-9EA"/>
+                            <constraint firstItem="p8v-gh-HXa" firstAttribute="top" secondItem="1LR-DH-9VW" secondAttribute="bottom" constant="8" id="i7w-JT-3c4"/>
+                            <constraint firstItem="xfR-LR-4pm" firstAttribute="trailing" secondItem="p8v-gh-HXa" secondAttribute="trailing" id="jV4-Q1-68L"/>
+                            <constraint firstItem="p8v-gh-HXa" firstAttribute="trailing" secondItem="1LR-DH-9VW" secondAttribute="trailing" id="nOB-WU-xJZ"/>
+                            <constraint firstItem="p8v-gh-HXa" firstAttribute="leading" secondItem="1LR-DH-9VW" secondAttribute="leading" id="o1A-93-Rh2"/>
+                            <constraint firstItem="1LR-DH-9VW" firstAttribute="top" secondItem="D70-qv-SaM" secondAttribute="bottom" constant="8" id="xIF-PV-Z3u"/>
+                        </constraints>
+                    </view>
+                    <navigationItem key="navigationItem" title="SOPA Selector" id="Jly-pq-k7y"/>
+                    <connections>
+                        <outlet property="mySearch" destination="1LR-DH-9VW" id="b1i-TS-QLD"/>
+                        <outlet property="myTextView" destination="xfR-LR-4pm" id="lXd-40-LdT"/>
+                        <outlet property="tableView" destination="p8v-gh-HXa" id="ofn-Pb-rNA"/>
+                        <segue destination="JEX-9P-axG" kind="push" identifier="showDetail" id="EFJ-hY-0GH"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="FzF-MP-GJT" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="827" y="-631"/>
+        </scene>
+        <!--Detail View Controller - SOPA Player-->
+        <scene sceneID="yUG-lL-AsK">
+            <objects>
+                <viewController title="SOPA Player" id="JEX-9P-axG" customClass="DetailViewController" sceneMemberID="viewController">
+                    <layoutGuides>
+                        <viewControllerLayoutGuide type="top" id="lep-8e-18r"/>
+                        <viewControllerLayoutGuide type="bottom" id="4aV-A2-SLk"/>
+                    </layoutGuides>
+                    <view key="view" contentMode="scaleToFill" id="svH-Pt-448">
+                        <rect key="frame" x="0.0" y="0.0" width="768" height="1024"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="backgroundColor" red="0.75294117650000003" green="1" blue="0.50196078430000002" alpha="1" colorSpace="calibratedRGB"/>
+                    </view>
+                    <toolbarItems/>
+                    <navigationItem key="navigationItem" title="SOPA Player" id="mOI-FS-AaM">
+                        <barButtonItem key="backBarButtonItem" title="SOPA Selector" id="E2m-T2-Lub"/>
+                    </navigationItem>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="FJe-Yq-33r" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="859" y="542"/>
+        </scene>
+    </scenes>
+    <simulatedMetricsContainer key="defaultSimulatedMetrics">
+        <simulatedStatusBarMetrics key="statusBar" statusBarStyle="blackOpaque"/>
+        <simulatedOrientationMetrics key="orientation"/>
+        <simulatedScreenMetrics key="destination"/>
+    </simulatedMetricsContainer>
+</document>

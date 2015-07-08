@@ -2,8 +2,9 @@
 //  sopaObject.m
 //  mySopa
 //
-//  Created by Kaoru Ashihara on 13/10/03.
-//  Copyright (c) 2013, AIST. All rights reserved.
+//  Created by Kaoru Ashihara on 29 Mar. 2014
+//  Revised on 2 Mar. 2015
+//  Copyright (c) 2015, AIST. All rights reserved.
 //
 
 #import "sopaObject.h"
@@ -20,8 +21,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     SInt32 iOff;
     SInt32 iDBSize;
     SInt16 iRatio;
-    SInt16 *ResultLeft;
-    SInt16 *ResultRight;
     SInt16 *sHrtf;
     SInt16 *sPhase;
     SInt16 iProc;
@@ -33,17 +32,19 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     SInt32 sCurrentDataOffset;
     SInt16 *sAngl;
     SInt16 *sAngr;
-    SInt16 *sStream;
     SInt16 connStatusCode;
+    SInt16 sHeaderSize;
+    SInt16 sSec;
+    SInt16 sVersion;
     double *dHan;
+    double *dRamp;
     double dAtt;
-    BOOL isVersion1;
+    BOOL isFileNew;
     NSMutableData *mData0,*mData1,*mHrtf,*mPhase;
-    
-    SInt16 sPrev;
 }
 
 @synthesize ExtBufSize;
+@synthesize numIntvl;
 @synthesize myConn;
 @synthesize databaseConn;
 @synthesize urlStr;
@@ -57,15 +58,29 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 @synthesize isPlaying;
 @synthesize isCanceled;
 @synthesize isFromDir;
+@synthesize isAsset;
+@synthesize isSequel;
+@synthesize isSS;
+@synthesize isImageUpdate;
+@synthesize isNewLoop;
+@synthesize isProceed;
+@synthesize isBeginning;
 @synthesize iSize;
 @synthesize iStage;
 @synthesize iDirNum;
 @synthesize iOverlapFactor;
+@synthesize iFileNum;
+@synthesize iMilliSecIntvl;
 @synthesize numSampleRate;
 @synthesize numPacketsToRead;
 @synthesize expectedLength;
+@synthesize lChunkSize;
+@synthesize lBytesDone;
 @synthesize dirID;
 @synthesize dilID;
+@synthesize sStream;
+@synthesize ResultLeft;
+@synthesize ResultRight;
 
 -(id)init{
     Byte sB;
@@ -73,11 +88,15 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     self = [super init];
     
     ExtBufSize = 16384;
+    numIntvl = 44100 * 4;
     iDirNum = 254;
     iDBSize = 512 * iDirNum;
-    dAtt = 3800;
+    dAtt = 4096;
     [self setNumPacketsToRead:ExtBufSize / 4];
     [self setNumSampleRate:22050];
+    isFileNew = NO;
+    isImageUpdate = NO;
+    [self setIsBeginning:NO];
     
     dirID = [[NSMutableData alloc] init];
     dilID = [[NSMutableData alloc] init];
@@ -115,9 +134,11 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 
         [dilID appendBytes:&sG length:sizeof(Byte)];
     }
-    sB = 0;
+
+    sB = 254;
     [dilID appendBytes:&sB length:sizeof(Byte)];
     [dirID appendBytes:&sB length:sizeof(Byte)];
+    sB = 255;
     [dilID appendBytes:&sB length:sizeof(Byte)];
     [dirID appendBytes:&sB length:sizeof(Byte)];
     
@@ -126,6 +147,11 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     
     iStage = 0;
     
+    if(sopaQueueObject){
+        AudioQueueDispose(sopaQueueObject,YES);
+        sopaQueueObject = nil;
+    }
+    
     return self;
 }
 
@@ -133,13 +159,20 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     SInt32 nInt;
     NSData *val0,*val1;
     
+    if(iStage > 1){
+        return;
+    }
 //    NSLog(@"Search files in the application directories");
     if(iStage == 0){
         NSString *hrtfPath = [[NSBundle mainBundle] pathForResource:@"hrtf3d512" ofType:@"bin"];
-        mHrtf = [NSData dataWithContentsOfFile:hrtfPath];
+        mHrtf = [[NSMutableData alloc]initWithData:[NSData dataWithContentsOfFile:hrtfPath]];
+        iStage ++;
     }
-    NSString *phasePath = [[NSBundle mainBundle] pathForResource:@"phase3d512" ofType:@"bin"];
-    mPhase = [NSData dataWithContentsOfFile:phasePath];
+    if(iStage == 1){
+        NSString *phasePath = [[NSBundle mainBundle] pathForResource:@"phase3d512" ofType:@"bin"];
+        mPhase = [[NSMutableData alloc]initWithData:[NSData dataWithContentsOfFile:phasePath]];
+        iStage ++;
+    }
     
     if(mHrtf == nil || mPhase == nil){
         NSNotification* notification;
@@ -173,8 +206,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             [center postNotification:notification];
             return;
         }
-        
-        iStage = 2;
         
         isPrepared = NO;
         [self setIsPlaying:NO];
@@ -296,22 +327,23 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     AudioQueueStart(sopaQueueObject, NULL);
 }
 
+-(void)start{
+    if(isBeginning){
+        sCurrentData ++;
+        [self prepareSopaQueue];
+        [self setIsBeginning:NO];
+    }
+    else if(myConn == nil){
+        [self play];
+    }
+}
+
 -(void)play{
     NSURL *sopaUrl;
     
-    sPrev = 0;
-    
-    if(sopaQueueObject){
-        AudioQueueDispose(sopaQueueObject,YES);
-        sopaQueueObject = nil;
-    }
-    
-    NSRange rang = [self.urlStr rangeOfString:@"://"];
-    if(rang.location == NSNotFound){
-        NSString *tmpStr = [[NSBundle mainBundle] pathForResource:@"default_cube" ofType:@"png"];
-        NSString *newStr = [tmpStr stringByDeletingLastPathComponent];
-        tmpStr = [newStr stringByAppendingPathComponent:self.urlStr];
-        sopaUrl = [[NSURL alloc]initFileURLWithPath:tmpStr];
+    if(self.isAsset){
+//        sopaUrl = [NSURL fileURLWithPath:[self urlStr]];
+        sopaUrl = [NSURL URLWithString:self.urlStr];
         
     }
     else {
@@ -327,68 +359,101 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         [alert show];
     }
     else{
-        NSURLRequest *request = [NSURLRequest requestWithURL:sopaUrl];
+        NSURLRequest *request = [NSURLRequest requestWithURL:sopaUrl cachePolicy:NSURLRequestReloadIgnoringCacheData timeoutInterval:30];
     
         self.isLoaded = NO;
-        numBytesWritten = nBytesRead = nBytesReady = 0;
+        if(iSize == 0){
+            nTrial = NO;
+            [self setIsBeginning:NO];
+            numBytesWritten = nBytesRead = nBytesReady = 0;
+            sCurrentData = 0;
+            sSec = 0;
+            sCurrentDataOffset = 44;
+            lBytesDone = 0;
+            isProceed = NO;
+            isNewLoop = NO;
+        }
     
-        sCurrentData = 0;
-        sCurrentDataOffset = 44;
-        nTrial = NO;
-        iSize = 0;
         self.myConn = [[NSURLConnection alloc]initWithRequest : request delegate : self];
-        if (self.myConn == nil) {
-            [self setIsPlaying:NO];            
-            sCurrentDataOffset = 0;
-
-            UIAlertView *alert = [[UIAlertView alloc]
-                              initWithTitle : @"ConnectionError"
-                              message : @"ConnectionError"
-                              delegate : nil cancelButtonTitle : @"OK"
-                              otherButtonTitles : nil];
-            [alert show];
- 
+        if(self.myConn == nil) {
             [self setIsPlaying:NO];
-        
+            sCurrentDataOffset = 0;
+            
+            UIAlertView *alert = [[UIAlertView alloc]
+                                  initWithTitle : @"ConnectionError"
+                                  message : @"ConnectionError"
+                                  delegate : nil cancelButtonTitle : @"OK"
+                                  otherButtonTitles : nil];
+            [alert show];
+            
             NSNotification* notification;
             notification = [NSNotification notificationWithName:@"errorDetection" object:self];
             NSNotificationCenter* center;
             center = [NSNotificationCenter defaultCenter];
-        
-        // Post notification
+            
+            // Post notification
             [center postNotification:notification];
         }
-        else
-            [self setIsPlaying:YES];
+        else{
+            if(isSequel){
+                if(self.nBytesRead > 0)
+                    isFileNew = YES;
+                sHeaderSize = 44;
+            }
+            else
+                isFileNew = NO;
+        }
     }
 }
 
 -(void) connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
 	NSHTTPURLResponse *res = (NSHTTPURLResponse *)response;
-
+    NSString *strNum;
+    NSString *strNext;
+    NSString *tmpStr;
+    
     if(!isFromDir){
         connStatusCode = [res statusCode];
-
-        if(connStatusCode >= 400){
+        if(connStatusCode == 404 && isSequel && iFileNum > 0){
             [connection cancel];
-            [self connection:connection didFailWithError:nil];
+            if(iStage < 2)
+                [self loadDatabaseFromDir];
+            else if(iStage == 2){
+                strNum = [NSString stringWithFormat:@"%02d.",iFileNum];
+                strNext = [NSString stringWithFormat:@"%02d.",0];
+                iFileNum = 0;
+                isNewLoop = YES;
+                tmpStr = [[self urlStr]stringByReplacingOccurrencesOfString:strNum withString:strNext];
+                self.urlStr = tmpStr;
+                
+                [self play];
+            }
         }
-        else if (connStatusCode != 200) {
-            [connection cancel];
-            [self connection:connection didFailWithError:nil];
+        else{
+            if(connStatusCode >= 400){
+                [connection cancel];
+                //            [self connection:connection didFailWithError:nil];
+                return;
+            }
+            else if (connStatusCode != 200) {
+                [connection cancel];
+                //            [self connection:connection didFailWithError:nil];
+                return;
+            }
+            else if(iStage < 2){
+                if(iStage == 0)
+                    mHrtf = [[NSMutableData alloc]initWithLength:0];
+                else if(iStage == 1)
+                    mPhase = [[NSMutableData alloc]initWithLength:0];
+            }
         }
-        else if(iStage < 2){
-            if(iStage == 0)
-                mHrtf = [[NSMutableData alloc]initWithLength:0];
-            else if(iStage == 1)
-                mPhase = [[NSMutableData alloc]initWithLength:0];
-        }
+        self.expectedLength = [res expectedContentLength];
     }
-    self.expectedLength = [res expectedContentLength];
 }
 
-- (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
+- (void)connection:(NSURLConnection *)connection didReceiveData:(NSMutableData *)data{
     BOOL isWrong = NO;
+    NSMutableData *newData;
     
     if(iStage == 0){
         [mHrtf appendData:data];
@@ -398,9 +463,21 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         [mPhase appendData:data];
         return;
     }
+/*
     else if(!isPlaying)
-        return;
+        return; */
     //  Append data to data stream
+    if(isFileNew){
+        if(data.length <= sHeaderSize)
+            sHeaderSize -= data.length;
+        else{
+            newData = [[NSMutableData alloc]initWithData:[data subdataWithRange:NSMakeRange(sHeaderSize,data.length - sHeaderSize)]];
+//            [data replaceBytesInRange:NSMakeRange(0,sHeaderSize) withBytes:NULL length:0];
+            data = newData;
+            isFileNew = NO;
+            sHeaderSize = 44;
+        }
+    }
     if(sCurrentData == 0){
         if(mData0 == nil){
             mData0 = [[NSMutableData alloc] initWithData:data];
@@ -418,7 +495,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         }
     }
     
-    self.nBytesRead += [data length];
+    self.nBytesRead += (UInt32)[data length];
 
     //  Check file header
     if(sCurrentData == 0 && self.nBytesRead > ExtBufSize * 4 && !nTrial){
@@ -489,13 +566,23 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             val0 = nil;
             isWrong = YES;
         }
+        numIntvl = nSampleRate * iMilliSecIntvl / 1000 * 4;
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(39,1)];
-        if(*(int *)([val0 bytes]) <= 1){
-            isVersion1 = YES;
+        sVersion = *(int *)([val0 bytes]);
+        if(sVersion >= 3 || isSS){
+            iOverlapFactor = 2;
         }
-        else
-            isVersion1 = NO;
-        
+       
+        val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(40,1)];
+        lChunkSize = *(int *)([val0 bytes]);
+        val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(41,1)];
+        lChunkSize += *(int *)([val0 bytes]) * 256;
+        val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(42,1)];
+        lChunkSize += *(int *)([val0 bytes]) * 65536;
+        val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(43,1)];
+        lChunkSize += *(int *)([val0 bytes]) * 16777216;
+//        NSLog(@"Chunk size %ld",lChunkSize);
+
         if(isWrong){
             UIAlertView *alertView = [[UIAlertView alloc]
                                       initWithTitle : @"SOPA HeaderError"
@@ -516,8 +603,10 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             [self setNumSampleRate:nSampleRate];
             iOff = numOffset = 44;
             nTrial = YES;
-            sCurrentData ++;
-            [self prepareSopaQueue];
+            [self setIsBeginning:YES];
+        }
+        if(nTrial && isPlaying){
+            [self start];
         }
     }
     NSNotification* notification;
@@ -548,19 +637,23 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
+    NSString *strNum;
+    NSString *strNext;
+    NSString *newStr;
     
     connection = nil;
+/*
     if(!isPlaying){
         mData0 = nil;
         mData1 = nil;
-    }
+    }   */
     if(iStage == 0 || iStage == 1){
         iStage ++;
         [self loadDatabase];
     }
     else{
         isLoaded = YES;
-        if(!nTrial || connStatusCode >= 400){
+        if(connStatusCode >= 400){
             NSNotification* notification;
             notification = [NSNotification notificationWithName:@"fileError" object:self];
             NSNotificationCenter* center;
@@ -568,6 +661,16 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             
             // Post notification
             [center postNotification:notification];
+        }
+        else{
+            if(isSequel){
+                strNum = [NSString stringWithFormat:@"%02d.",iFileNum];
+                iFileNum ++;
+                strNext = [NSString stringWithFormat:@"%02d.",iFileNum];
+                newStr = [[self urlStr]stringByReplacingOccurrencesOfString:strNum withString:strNext];
+                self.urlStr = newStr;
+//              NSLog(@"%@",[self urlStr]);
+            }
         }
     }
 }
@@ -599,20 +702,21 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 -(SInt16)inputData:(UInt32)nNum asByte:(BOOL)isByte{
     SInt16 sVal;
     SInt32 sNumRead;
-    unsigned char cByte;
+    unsigned char cByte[1];
     BOOL isNil = NO;
     
+    cByte[0] = 0;
     if(sCurrentData == 1){
         if(mData0 == nil)
             isNil = YES;
-        sNumRead = mData0.length;
+        sNumRead = (SInt32)mData0.length;
         if(self.iSize == 0)
             sCurrentDataOffset = nNum;
     }
     else{
         if(mData1 == nil)
             isNil = YES;
-        sNumRead = mData1.length;
+        sNumRead = (SInt32)mData1.length;
     }
     
     if(!isLoaded && isNil){
@@ -627,14 +731,20 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     }
     
     if(nNum < self.nBytesRead){
-        if(sCurrentData == 1)
-            [mData0 getBytes: &cByte range: NSMakeRange(sCurrentDataOffset,sizeof(unsigned char))];
-        else
-            [mData1 getBytes: &cByte range: NSMakeRange(sCurrentDataOffset,sizeof(unsigned char))];
-        if(isByte)
-            sVal = (Byte)cByte;
-        else
-            sVal = (SInt16)cByte;
+        if(isNil){
+            sVal = 0;
+        }
+        else{
+            if(sCurrentData == 1)
+                [mData0 getBytes: &cByte range: NSMakeRange(sCurrentDataOffset,sizeof(unsigned char))];
+            else
+                [mData1 getBytes: &cByte range: NSMakeRange(sCurrentDataOffset,sizeof(unsigned char))];
+            
+            if(isByte)
+                sVal = (Byte)cByte[0];
+            else
+                sVal = (SInt16)cByte[0];
+        }
     }
     else if(self.isLoaded == NO){
         if([self isPlaying] == YES && nNum == self.nBytesRead){
@@ -655,8 +765,10 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         }
         sVal = 0;
     }
-    else
+    else{
         sVal = 0;
+//        NSLog(@"No data!");
+    }
     sCurrentDataOffset ++;
     if(sCurrentDataOffset == sNumRead){
         if(sCurrentData == 1){
@@ -678,16 +790,16 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     unsigned char cByte;
     UInt32 iCount,iFnum;
     UInt32 numPackets = self.numPacketsToRead;
-    SInt32 iInt,sSample,iNum,iPos,iPosImage;
+    SInt32 iInt,sSample,iNum,iPos,iPosImage,iPosSec,iPosSecImage;
     SInt32 iBufSize = 0;
     SInt16 iMarg,iEnd;
     SInt16 sAnglePoint,sAnglRef;
     SInt16 sStreamPoint;
-    double dSpL,dSpR,dSpImageL,dSpImageR,dPhaseL,dPhaseR,dPhaseImageL,dPhaseImageR;
-    
+    SInt16 *nAdr;
     SInt16 nSin;
-    
     SInt16 *output = inBuffer->mAudioData;
+    double dRise,dPh,dWAtt;
+    double dSpL,dSpR,dSpImageL,dSpImageR,dPhaseL,dPhaseR,dPhaseImageL,dPhaseImageR;
     
     if(!isPlaying){
         return;
@@ -696,7 +808,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         
         iInt = 5;
         sSample = 1;
-        if(isVersion1){
+        if(sVersion == 1){
             while(sSample > 0){
                 sSample = [self inputData:self.numOffset + iInt asByte:TRUE];
                 iInt += 4;
@@ -717,20 +829,26 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         iFrames = numPackets / iProc;
         iRem = iSize - iProc;
         iHlf = iSize / 2;
+        dRise = (double)iSize / 8;
         
         sCurrentDataOffset = numOffset;
         
-        ResultLeft = (malloc(sizeof(SInt16) * iSize));
-        ResultRight = (malloc(sizeof(SInt16) * iSize));
+        ResultLeft = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
+        ResultRight = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
+        sStream = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
         
-        sAngl = malloc(sizeof(SInt16) * iHlf * iOverlapFactor);
-        sAngr = malloc(sizeof(SInt16) * iHlf * iOverlapFactor);
-        sStream = (malloc(sizeof(SInt16) * iSize));
+        sAngl = malloc(sizeof(SInt16) * iSize * 2);
+        sAngr = malloc(sizeof(SInt16) * iSize * 2);
         
         /* Prepare Hanning window */
         dHan = (malloc(sizeof(double) * iSize));
         for(iNum = 0;iNum < iSize;iNum ++){
-            dHan[iNum] = (1 - cos(2 * M_PI * (double)iNum / (double)iSize)) / 4;
+            if(iNum < (int)dRise)
+                dHan[iNum] = (1 - cos(M_PI * (double)iNum / dRise)) / (double)iOverlapFactor;
+            else if(iSize - iNum <= (int)dRise)
+                dHan[iNum] = (1 - cos(M_PI * ((double)iSize - (double)iNum) / dRise)) / (double)iOverlapFactor;
+            else
+                dHan[iNum] = 2 / (double)iOverlapFactor;
         }
         
         NSNotification* notification;
@@ -761,71 +879,85 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             iEnd = iSize * 4;
         }
         else if(iFnum == 0){
-            sAnglePoint = (iOverlapFactor - 1) * iHlf;
+            if(iOverlapFactor == 2)
+                sAnglePoint = iSize;
+            else
+                sAnglePoint = (iOverlapFactor - 1) * iHlf;
             sStreamPoint = (iOverlapFactor - 1) * iProc;
             iEnd = iProcBytes;
         }
         else{
-            sAnglePoint = ((iFnum - 1) % iOverlapFactor) * iHlf;
+            if(iOverlapFactor == 2)
+                sAnglePoint = ((iFnum - 1) % iOverlapFactor) * iSize;
+            else
+                sAnglePoint = ((iFnum - 1) % iOverlapFactor) * iHlf;
             sStreamPoint = ((iFnum - 1) % iOverlapFactor) * iProc;
             iEnd = iProcBytes;
         }
         for(iCount = 0;iCount < iEnd;iCount += 4){
             SInt16 sLoc = [self inputData:iOff + iCount asByte:TRUE];
-//            if(isVersion1)
-//                sLoc = [self convertDir:sLoc];
+            SInt16 sMark = sAnglePoint + iCount / 2 + 1;
             [dilID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngl[sAnglePoint + iCount / 2 + 1] = (SInt16)cByte;
+            sAngl[sMark] = (SInt16)cByte;
             [dirID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngr[sAnglePoint + iCount / 2 + 1] = (SInt16)cByte;
+            sAngr[sMark] = (SInt16)cByte;
             
             sLoc = [self inputData:iOff + iCount + 1 asByte:TRUE];
-//            if(isVersion1)
-//                sLoc = [self convertDir:sLoc];
+            sMark -= 1;
             [dilID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngl[sAnglePoint + iCount / 2] = (SInt16)cByte;
+            sAngl[sMark] = (SInt16)cByte;
             [dirID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngr[sAnglePoint + iCount / 2] = (SInt16)cByte;
+            sAngr[sMark] = (SInt16)cByte;
 
             nSin = [self inputData:iOff + iCount + 2 asByte:FALSE];
             nSin += [self inputData:iOff + iCount + 3 asByte:FALSE] * 256;
+            nAdr = &nSin;
+            
             if(iEnd == iSize * 4){
-                sStream[iCount / 4] = nSin;          // PCM data
+                [sStream replaceBytesInRange:NSMakeRange(iCount / 2,2) withBytes:nAdr length:2];  // PCM data
             }
             else{
-                sStream[sStreamPoint + iCount / 4] = nSin;        // PCM data
+                [sStream replaceBytesInRange:NSMakeRange((sStreamPoint + iCount / 4) * 2,2) withBytes:nAdr length:2];        // PCM data
             }
         }
+        
         iOff += iEnd;
         for(iNum = 0;iNum < iSize;iNum ++){
             SInt16 sRef;
-            if(iEnd == iSize * 4)
+            if(numOffset == 44)
                 sRef = iNum;
             else
                 sRef = sStreamPoint + iProc + iNum;
             if(sRef >= iSize)
                 sRef -= iSize;
-            realRight[iNum] = sStream[sRef];
+            [sStream getBytes:&nSin range:NSMakeRange(sRef * 2,2)];
+            realRight[iNum] = nSin;
             imageRight[iNum] = 0;
         }
         
+        dWAtt = dAtt * 2;
         [trans fastFt:realRight:imageRight:NO];
         
         for(sAnglRef = 0;sAnglRef < iHlf;sAnglRef ++){
-            iNum = (iHlf * (iFnum % iOverlapFactor) + sAnglRef);
-            if(iNum >= iHlf * iOverlapFactor)
-                iNum -= iHlf * iOverlapFactor;
+            if(iOverlapFactor == 2){
+                iNum = (iSize * (iFnum % iOverlapFactor)) + sAnglRef;
+            }
+            else{
+                iNum = (iHlf * (iFnum % iOverlapFactor) + sAnglRef);
+                if(iNum >= iHlf * iOverlapFactor)
+                    iNum -= iHlf * iOverlapFactor;
+            }
             SInt32 iFreq = (sAnglRef / iRatio);
-            if(sAngl[iNum] < 0 || iFreq == 0 || sAngl[iNum] == 255){
+            if(sAngl[iNum] < 0 || iFreq == 0 || sAngl[iNum] >= 254){
                 dSpL = dSpR = realRight[sAnglRef];
-                dSpImageL = dSpImageR = realRight[sAnglRef];
+                dSpImageL = dSpImageR = realRight[iSize - sAnglRef];
                 dPhaseL = dPhaseR = imageRight[sAnglRef];
-                dPhaseImageL = dPhaseImageR = imageRight[sAnglRef];
+                dPhaseImageL = dPhaseImageR = imageRight[iSize - sAnglRef];
             }
             else{
                 //              Construct Temporal HRTF by using HRTF database (left channel)
                 iPos = 512 * sAngl[iNum] + iFreq;
-                iPosImage = 512 * sAngl[iNum] + 512 - iFreq;
+                iPosImage = 512 * sAngl[iNum] + 511 - iFreq;
                 if(iPosImage >= iDBSize)
                     iPosImage -= iDBSize;
                 else if(iPosImage < 0)
@@ -834,16 +966,49 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     iPos -= iDBSize;
                 else if(iPos < 0)
                     iPos += iDBSize;
+                if(sVersion >= 3){
+                    iPosSec = 512 * sAngl[iHlf + iNum];
+                    iPosSecImage = iPosSec + 511 - iFreq;
+                    iPosSec += iFreq;
+                    if(iPosSecImage >= iDBSize)
+                        iPosSecImage -= iDBSize;
+                    else if(iPosSecImage < 0)
+                        iPosSecImage += iDBSize;
+                    if(iPosSec >= iDBSize)
+                        iPosSec -= iDBSize;
+                    else if(iPosSec < 0)
+                        iPosSec += iDBSize;
                 
                 //              Superimpose Temporal HRTF on spectrum of reference signal (left channel)
-                dSpL = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
-                dSpImageL = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
-                dPhaseL = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
-                dPhaseImageL = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                    dSpL = realRight[sAnglRef] * ((double)sHrtf[iPos] + (double)sHrtf[iPosSec]) / dWAtt;
+                    dSpImageL = realRight[iSize - sAnglRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
+                    dPh = ((double)sPhase[iPos] + (double)sPhase[iPosSec]) / 20000.0;
+                    if(abs(sPhase[iPos] - sPhase[iPosSec]) > 31415){
+                        if(dPh < 0)
+                            dPh += M_PI;
+                        else
+                            dPh -= M_PI;
+                    }
+                    dPhaseL = imageRight[sAnglRef] + dPh;
+                    dPh = ((double)sPhase[iPosImage] + (double)sPhase[iPosSecImage]) / 20000.0;
+                    if(abs(sPhase[iPosImage] - sPhase[iPosSecImage]) > 31415){
+                        if(dPh < 0)
+                            dPh += M_PI;
+                        else
+                            dPh -= M_PI;
+                    }
+                    dPhaseImageL = imageRight[iSize - sAnglRef] + dPh;
+                }
+                else{
+                    dSpL = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
+                    dSpImageL = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
+                    dPhaseL = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
+                    dPhaseImageL = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                }
                 
                 //              Construct Temporal HRTF by using HRTF database (right channel)
                 iPos = 512 * sAngr[iNum] + iFreq;
-                iPosImage = 512 * sAngr[iNum] + 512 - iFreq;
+                iPosImage = 512 * sAngr[iNum] + 511 - iFreq;
                 if(iPosImage >= iDBSize)
                     iPosImage -= iDBSize;
                 else if(iPosImage < 0)
@@ -852,12 +1017,46 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     iPos -= iDBSize;
                 else if(iPos < 0)
                     iPos += iDBSize;
+                if(sVersion >= 3){
+                    iPosSec = 512 * sAngr[iHlf + iNum];
+                    iPosSecImage = iPosSec + 511 - iFreq;
+                    iPosSec += iFreq;
+                    if(iPosSecImage >= iDBSize)
+                        iPosSecImage -= iDBSize;
+                    else if(iPosSecImage < 0)
+                        iPosSecImage += iDBSize;
+                    if(iPosSec >= iDBSize)
+                        iPosSec -= iDBSize;
+                    else if(iPosSec < 0)
+                        iPosSec += iDBSize;
                 
                 //              Superimpose Temporal HRTF on spectrum of reference signal (right channel)
-                dSpR = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
-                dSpImageR = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
-                dPhaseR = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
-                dPhaseImageR = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                    dSpR = realRight[sAnglRef] * ((double)sHrtf[iPos] + (double)sHrtf[iPosSec]) / dWAtt;
+                    dSpImageR = realRight[iSize - sAnglRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
+                    dPh = ((double)sPhase[iPos] + (double)sPhase[iPosSec]) / 20000.0;
+                    if(abs(sPhase[iPos] - sPhase[iPosSec]) > 31415){
+                        if(dPh < 0)
+                            dPh += M_PI;
+                        else
+                            dPh -= M_PI;
+                    }
+                    dPhaseR = imageRight[sAnglRef] + dPh;
+                    dPh = ((double)sPhase[iPosImage] + (double)sPhase[iPosSecImage]) / 20000.0;
+                    if(abs(sPhase[iPosImage] - sPhase[iPosSecImage]) > 31415){
+                        if(dPh < 0)
+                            dPh += M_PI;
+                        else
+                            dPh -= M_PI;
+                    }
+                    dPhaseImageR = imageRight[iSize - sAnglRef] + dPh;
+                    
+                }
+                else{
+                    dSpR = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
+                    dSpImageR = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
+                    dPhaseR = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
+                    dPhaseImageR = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                }
             }
             realLeft[sAnglRef] = dSpL * cos(dPhaseL);
             realRight[sAnglRef] = dSpR * cos(dPhaseR);
@@ -869,8 +1068,10 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             imageRight[iSize - sAnglRef] = dSpImageR * sin(dPhaseImageR);
         }
         
-        realLeft[iHlf] = realRight[iHlf];
-        imageLeft[iHlf] = imageRight[iHlf];
+        dSpR = realRight[iHlf];
+        dPhaseR = imageRight[iHlf];
+        realLeft[iHlf] = realRight[iHlf] = dSpR * cos(dPhaseR);
+        imageLeft[iHlf] = imageRight[iHlf] = dSpR * sin(dPhaseR);
         
         [trans fastFt:realLeft:imageLeft:YES];              // Inverse FFT (left channel)
         [trans fastFt:realRight:imageRight:YES];            // Inverse FFT (right channel)
@@ -881,12 +1082,32 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             realRight[iNum] *= dHan[iNum];
             
             if(numBytesWritten == 0){
-                ResultLeft[iNum] = (SInt16)realLeft[iNum];
-                ResultRight[iNum] = (SInt16)realRight[iNum];
+                nSin = realLeft[iNum];
+                nAdr = &nSin;
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+
+                nSin = realRight[iNum];
+                nAdr = &nSin;
+                [ResultRight replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
             }
             else{
-                ResultLeft[iNum] += (SInt16)realLeft[iNum];
-                ResultRight[iNum] += (SInt16)realRight[iNum];
+                [ResultLeft getBytes:&nSin range:NSMakeRange(iNum * 2,2)];
+                nSin += (SInt16)realLeft[iNum];
+                if(nSin > 32767)
+                    nSin = 32767;
+                else if(nSin < -32768)
+                    nSin = -32768;
+                nAdr = &nSin;
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+                
+                [ResultRight getBytes:&nSin range:NSMakeRange(iNum * 2,2)];
+                nSin += (SInt16)realRight[iNum];
+                if(nSin > 32767)
+                    nSin = 32767;
+                else if(nSin < -32768)
+                    nSin = -32768;
+                nAdr = &nSin;
+                [ResultRight replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
             }
         }
         
@@ -914,12 +1135,15 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     
                     return;
                 }
-                *output = ResultLeft[iCount];
+                [ResultLeft getBytes:&nSin range:NSMakeRange(iCount * 2,2)];
+                *output = nSin;
                 output++;
-                *output = ResultRight[iCount];
+                [ResultRight getBytes:&nSin range:NSMakeRange(iCount * 2,2)];
+                *output = nSin;
                 output++;
                 iBufSize += 4;
                 numBytesWritten += 4;
+                lBytesDone += 4;
                 numOffset += 4;
                 if(numBytesWritten > nBytesReady){
                     if(!isLoaded){
@@ -943,15 +1167,44 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                 }
             }
             if(iCount < iRem){
-                ResultLeft[iCount] = ResultLeft[iCount + iProc];
-                ResultRight[iCount] = ResultRight[iCount + iProc];
+                [ResultLeft getBytes:&nSin range:NSMakeRange((iCount + iProc) * 2,2)];
+                nAdr = &nSin;
+                [ResultLeft replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
+
+                [ResultRight getBytes:&nSin range:NSMakeRange((iCount + iProc) * 2,2)];
+                nAdr = &nSin;
+                [ResultRight replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
             }
             else{
-                ResultLeft[iCount] = 0;
-                ResultRight[iCount] = 0;
+                nSin = 0;
+                nAdr = &nSin;
+                [ResultLeft replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
+                [ResultRight replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
             }
         }
-
+        if(isSequel && lBytesDone > 0 && !isProceed && isLoaded){
+            isProceed = YES;
+            
+            [self play];
+        }
+        if(lBytesDone >= lChunkSize){
+            if(isSequel){
+                lBytesDone = 0;
+                isProceed = NO;
+            }
+        }
+        
+        if(numBytesWritten / numIntvl != sSec){
+            sSec = numBytesWritten / numIntvl;
+            
+            NSNotification* notification;
+            notification = [NSNotification notificationWithName:@"getNewImage" object:self];
+            NSNotificationCenter* center;
+            center = [NSNotificationCenter defaultCenter];
+            
+            // Post notification
+            [center postNotification:notification];
+        }
         NSNotification* notification;
         notification = [NSNotification notificationWithName:@"reproductionProgress" object:self];
         NSNotificationCenter* center;
@@ -959,17 +1212,22 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         
         // Post notification
         [center postNotification:notification];
- 
+        
     }
-    if(nTrial){
+    if(isPlaying){
         inBuffer->mAudioDataByteSize = iBufSize;
         err = AudioQueueEnqueueBuffer(inAQ,inBuffer,0,NULL);
         if(err){
-            if(isPlaying){
-                [self setIsPlaying:NO];
-                [self stop:YES];
-            }
+            [self setIsPlaying:NO];
+            [self stop:YES];
         }
+    }
+    if(!isPlaying){
+        sAngl = nil;
+        sAngr = nil;
+        sStream = nil;
+        ResultLeft = nil;
+        ResultRight = nil;
     }
 }
 
@@ -992,14 +1250,13 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     return sRet;
 }
 
--(void)dealloc{
-    free(ResultLeft);
-    free(ResultRight);
+-(void)finalize{
     free(sHrtf);
     free(sPhase);
     free(dHan);
     free(sAngl);
-    free(sStream);
+    free(sAngr);
+
     if(sopaQueueObject)
         AudioQueueDispose(sopaQueueObject,YES);
 }

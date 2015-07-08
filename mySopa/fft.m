@@ -2,7 +2,7 @@
 //  fft.m
 //  mySopa
 //
-//  Created by Kaoru Ashihara on 13/04/03.
+//  Created by Kaoru Ashihara on 29 Mar. 2014
 //  Copyright (c) 2013, AIST. All rights reserved.
 //
 
