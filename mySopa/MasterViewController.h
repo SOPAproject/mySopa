@@ -25,5 +25,6 @@
 @property (strong, nonatomic) IBOutlet UITextView *myTextView;
 
 -(NSInteger)supportedInterfaceOrientations; // Must return Orientation Mask
+-(void)called;
 
 @end

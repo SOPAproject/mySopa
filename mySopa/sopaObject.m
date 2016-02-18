@@ -9,6 +9,8 @@
 
 #import "sopaObject.h"
 
+static const double dWPi = M_PI * 2;
+
 static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferRef inBuffer){
     if(!inUserData){
         return;
@@ -36,11 +38,13 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     SInt16 sHeaderSize;
     SInt16 sSec;
     SInt16 sVersion;
+    SInt16 sDirArry[256][72][36];
     double *dHan;
-    double *dRamp;
     double dAtt;
+    double *dAttRt;
     BOOL isFileNew;
     NSMutableData *mData0,*mData1,*mHrtf,*mPhase;
+    CC3Vector vecAngl[256];
 }
 
 @synthesize ExtBufSize;
@@ -52,6 +56,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 @synthesize numOffset;
 @synthesize nBytesRead;
 @synthesize nBytesReady;
+@synthesize bCardioid;
 @synthesize nTrial;
 @synthesize isLoaded;
 @synthesize isPrepared;
@@ -71,19 +76,30 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 @synthesize iOverlapFactor;
 @synthesize iFileNum;
 @synthesize iMilliSecIntvl;
+@synthesize iAzim;
+@synthesize iElev;
+@synthesize iRoll;
 @synthesize numSampleRate;
 @synthesize numPacketsToRead;
 @synthesize expectedLength;
 @synthesize lChunkSize;
 @synthesize lBytesDone;
-@synthesize dirID;
-@synthesize dilID;
 @synthesize sStream;
 @synthesize ResultLeft;
 @synthesize ResultRight;
+@synthesize softAtt;
+@synthesize sharpAtt;
+
+typedef struct{
+    float fReal;
+    float fX;
+    float fY;
+    float fZ;
+}quaternion;
 
 -(id)init{
-    Byte sB;
+    SInt16 sNum,sAz,sEl;
+    double dAz,dEl;
     
     self = [super init];
     
@@ -98,49 +114,33 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     isImageUpdate = NO;
     [self setIsBeginning:NO];
     
-    dirID = [[NSMutableData alloc] init];
-    dilID = [[NSMutableData alloc] init];
-    for(sB = 0;sB < iDirNum;sB ++){
-        Byte sG;
-        [dirID appendBytes:&sB length:sizeof(Byte)];
-
-        if(sB == 0 || sB == 1 || sB == 9 || sB == 25 || sB == 49 || sB == 79 || sB == 111 || sB == 142 || sB == 174 || sB == 204 || sB == 228 || sB == 244 || sB == 252 || sB == 253)
-            sG = sB;
-        else if(sB < 9){
-            sG = 10 - sB;
-        }
-        else if(sB < 25)
-            sG = 25 + 9 - sB;
-        else if(sB < 49)
-            sG = 49 + 25 - sB;
-        else if(sB < 79)
-            sG = 79 + 49 - sB;
-        else if(sB < 111)
-            sG = 111 + 79 - sB;
-        else if(sB < 127)
-            sG = 126 - 111 + sB;
-        else if(sB < 142)
-            sG = 111 - 126 + sB;
-        else if(sB < 174)
-            sG = 174 + 142 - sB;
-        else if(sB < 204)
-            sG = 204 + 174 - sB;
-        else if(sB < 228)
-            sG = 228 + 204 - sB;
-        else if(sB < 244)
-            sG = 244 + 228 - sB;
-        else
-            sG = 252 + 244 - sB;
-
-        [dilID appendBytes:&sG length:sizeof(Byte)];
+    sharpAtt = [[NSMutableData alloc] init];
+    softAtt = [[NSMutableData alloc] init];
+    
+    iAzim = 0;
+    iElev = 18;
+    iRoll = 18;
+    
+    for(sNum = 0;sNum < 127;sNum++){
+        [self initCoord:sNum];
     }
-
-    sB = 254;
-    [dilID appendBytes:&sB length:sizeof(Byte)];
-    [dirID appendBytes:&sB length:sizeof(Byte)];
-    sB = 255;
-    [dilID appendBytes:&sB length:sizeof(Byte)];
-    [dirID appendBytes:&sB length:sizeof(Byte)];
+    for(sNum = 0;sNum < 127;sNum++){
+        for(sAz = 0;sAz < 72;sAz ++){
+            dAz = M_PI * ((double)sAz - 36) / 36;
+            
+            for(sEl = -18;sEl < 18;sEl ++){
+                dEl = M_PI * (double)sEl / 36;
+                sDirArry[sNum][sAz][sEl + 18] = [self modifySector:sNum withPan:dAz withTilt:dEl];
+            }
+        }
+    }
+    for(sNum = 0;sNum < 127;sNum++){
+        for(sAz = 0;sAz < 72;sAz ++){
+            for(sEl = 0;sEl < 36;sEl ++){
+                sDirArry[253 - sNum][sAz][sEl] = 253 - sDirArry[sNum][sAz][sEl];
+            }
+        }
+    }
     
     sHrtf = (malloc(sizeof(SInt16) * iDBSize));
     sPhase = (malloc(sizeof(SInt16) * iDBSize));
@@ -225,7 +225,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     NSURL *sopaUrl;
     
     //  Prepare HRTF database
-    SInt32 nInt;
+    SInt32 nInt,nIw;
     NSData *val0,*val1;
     
     if(iStage == 0){
@@ -253,13 +253,14 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     else if(iStage == 2){
         nInt = 0;
         while(nInt < iDBSize && !isCanceled){
-            val0 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2,1)];
-            val1 = [mHrtf subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            nIw = nInt * 2;
+            val0 = [mHrtf subdataWithRange:NSMakeRange(nIw,1)];
+            val1 = [mHrtf subdataWithRange:NSMakeRange(nIw + 1,1)];
             sHrtf[nInt] = *(SInt16 *)[val0 bytes];
             sHrtf[nInt] += *(SInt16 *)[val1 bytes] * 256;
             
-            val0 = [mPhase subdataWithRange:NSMakeRange(nInt * 2,1)];
-            val1 = [mPhase subdataWithRange:NSMakeRange(nInt * 2 + 1,1)];
+            val0 = [mPhase subdataWithRange:NSMakeRange(nIw,1)];
+            val1 = [mPhase subdataWithRange:NSMakeRange(nIw + 1,1)];
             sPhase[nInt] = *(SInt16 *)[val0 bytes];
             sPhase[nInt] += *(SInt16 *)[val1 bytes] * 256;
             nInt ++;
@@ -558,6 +559,8 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             val0 = nil;
             isWrong = YES;
         }
+        else
+            iOverlapFactor = 2;
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(24,1)];
         nSampleRate = *(int *)([val0 bytes]);
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(25,1)];
@@ -569,9 +572,10 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         numIntvl = nSampleRate * iMilliSecIntvl / 1000 * 4;
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(39,1)];
         sVersion = *(int *)([val0 bytes]);
+/*
         if(sVersion >= 3 || isSS){
             iOverlapFactor = 2;
-        }
+        }   */
        
         val0 = (NSMutableData *)[mData0 subdataWithRange:NSMakeRange(40,1)];
         lChunkSize = *(int *)([val0 bytes]);
@@ -787,18 +791,19 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
 
 -(void)_processor:(AudioQueueRef)inAQ queueBuffer:(AudioQueueBufferRef)inBuffer{
     OSStatus err;
-    unsigned char cByte;
-    UInt32 iCount,iFnum;
+    UInt32 iCount,iFnum,iNumero;
     UInt32 numPackets = self.numPacketsToRead;
     SInt32 iInt,sSample,iNum,iPos,iPosImage,iPosSec,iPosSecImage;
     SInt32 iBufSize = 0;
+    SInt16 nSin;
     SInt16 iMarg,iEnd;
     SInt16 sAnglePoint,sAnglRef;
     SInt16 sStreamPoint;
     SInt16 *nAdr;
-    SInt16 nSin;
+    SInt16 sPos;
     SInt16 *output = inBuffer->mAudioData;
-    double dRise,dPh,dWAtt;
+    SInt16 sRef;
+    double dRise,dPh,dWAtt,dV,dRoll;
     double dSpL,dSpR,dSpImageL,dSpImageR,dPhaseL,dPhaseR,dPhaseImageL,dPhaseImageR;
     
     if(!isPlaying){
@@ -833,15 +838,22 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         
         sCurrentDataOffset = numOffset;
         
+        sStream = nil;
+        ResultLeft = nil;
+        ResultRight = nil;
+
         ResultLeft = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
         ResultRight = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
         sStream = [[NSMutableData alloc]initWithLength:sizeof(SInt16) * iSize];
         
-        sAngl = malloc(sizeof(SInt16) * iSize * 2);
-        sAngr = malloc(sizeof(SInt16) * iSize * 2);
+        if(sAngl == nil)
+            sAngl = malloc(sizeof(SInt16) * iSize * 2);
+        if(sAngr == nil)
+            sAngr = malloc(sizeof(SInt16) * iSize * 2);
         
         /* Prepare Hanning window */
-        dHan = (malloc(sizeof(double) * iSize));
+        if(dHan == nil)
+            dHan = (malloc(sizeof(double) * iSize));
         for(iNum = 0;iNum < iSize;iNum ++){
             if(iNum < (int)dRise)
                 dHan[iNum] = (1 - cos(M_PI * (double)iNum / dRise)) / (double)iOverlapFactor;
@@ -849,6 +861,12 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                 dHan[iNum] = (1 - cos(M_PI * ((double)iSize - (double)iNum) / dRise)) / (double)iOverlapFactor;
             else
                 dHan[iNum] = 2 / (double)iOverlapFactor;
+        }
+        if(dAttRt == nil){
+            dAttRt = (malloc(sizeof(double) * iHlf));
+        }
+        for(iNum = 0;iNum < iHlf;iNum ++){
+            dAttRt[iNum] = 1;
         }
         
         NSNotification* notification;
@@ -895,22 +913,43 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             iEnd = iProcBytes;
         }
         for(iCount = 0;iCount < iEnd;iCount += 4){
-            SInt16 sLoc = [self inputData:iOff + iCount asByte:TRUE];
+            iNumero = iOff + iCount;
+            SInt16 sLoc = [self inputData:iNumero asByte:TRUE];
             SInt16 sMark = sAnglePoint + iCount / 2 + 1;
-            [dilID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngl[sMark] = (SInt16)cByte;
-            [dirID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngr[sMark] = (SInt16)cByte;
+            if(sVersion == 1)
+                sLoc = [self convertDir:sLoc];
+            if(sLoc > 253){
+                sAngr[sMark] = sAngl[sMark] = sLoc;
+            }
+            else{
+                if(iRoll == 18)
+                    sAngr[sMark] = sDirArry[sLoc][iAzim][iElev];
+                else{
+                    dRoll = ((double)iRoll - 18) * M_PI / 36;
+                    sAngr[sMark] = [self rollSector:sDirArry[sLoc][iAzim][iElev] byRoll:dRoll];
+                }
+                sAngl[sMark] = [self opposite:sAngr[sMark]];
+            }
             
-            sLoc = [self inputData:iOff + iCount + 1 asByte:TRUE];
+            sLoc = [self inputData:iNumero + 1 asByte:TRUE];
             sMark -= 1;
-            [dilID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngl[sMark] = (SInt16)cByte;
-            [dirID getBytes:&cByte range:NSMakeRange(sLoc,1)];
-            sAngr[sMark] = (SInt16)cByte;
+            if(sVersion == 1)
+                sLoc = [self convertDir:sLoc];
+            if(sLoc > 253){
+                sAngr[sMark] = sAngl[sMark] = sLoc;
+            }
+            else{
+                if(iRoll == 18)
+                    sAngr[sMark] = sDirArry[sLoc][iAzim][iElev];
+                else{
+                    dRoll = ((double)iRoll - 18) * M_PI / 36;
+                    sAngr[sMark] = [self rollSector:sDirArry[sLoc][iAzim][iElev] byRoll:dRoll];
+                }
+                sAngl[sMark] = [self opposite:sAngr[sMark]];
+            }
 
-            nSin = [self inputData:iOff + iCount + 2 asByte:FALSE];
-            nSin += [self inputData:iOff + iCount + 3 asByte:FALSE] * 256;
+            nSin = [self inputData:iNumero + 2 asByte:FALSE];
+            nSin += [self inputData:iNumero + 3 asByte:FALSE] * 256;
             nAdr = &nSin;
             
             if(iEnd == iSize * 4){
@@ -923,7 +962,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         
         iOff += iEnd;
         for(iNum = 0;iNum < iSize;iNum ++){
-            SInt16 sRef;
             if(numOffset == 44)
                 sRef = iNum;
             else
@@ -939,6 +977,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         [trans fastFt:realRight:imageRight:NO];
         
         for(sAnglRef = 0;sAnglRef < iHlf;sAnglRef ++){
+            sRef = iSize - sAnglRef;
             if(iOverlapFactor == 2){
                 iNum = (iSize * (iFnum % iOverlapFactor)) + sAnglRef;
             }
@@ -948,16 +987,29 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     iNum -= iHlf * iOverlapFactor;
             }
             SInt32 iFreq = (sAnglRef / iRatio);
+            iNumero = 512 - iFreq;
             if(sAngl[iNum] < 0 || iFreq == 0 || sAngl[iNum] >= 254){
                 dSpL = dSpR = realRight[sAnglRef];
-                dSpImageL = dSpImageR = realRight[iSize - sAnglRef];
+                dSpImageL = dSpImageR = realRight[sRef];
+                if(bCardioid == 2 && sAngl[iNum] > 254){
+                    dSpL /= 4;
+                    dSpR /= 4;
+                    dSpImageL /= 4;
+                    dSpImageR /= 4;
+                }
+                else if(bCardioid == 1 && sAngl[iNum] > 254){
+                    dSpL /= 2;
+                    dSpR /= 2;
+                    dSpImageL /= 2;
+                    dSpImageR /= 2;
+                }
                 dPhaseL = dPhaseR = imageRight[sAnglRef];
-                dPhaseImageL = dPhaseImageR = imageRight[iSize - sAnglRef];
+                dPhaseImageL = dPhaseImageR = imageRight[sRef];
             }
             else{
                 //              Construct Temporal HRTF by using HRTF database (left channel)
                 iPos = 512 * sAngl[iNum] + iFreq;
-                iPosImage = 512 * sAngl[iNum] + 511 - iFreq;
+                iPosImage = 512 * sAngl[iNum] + iNumero;
                 if(iPosImage >= iDBSize)
                     iPosImage -= iDBSize;
                 else if(iPosImage < 0)
@@ -968,7 +1020,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     iPos += iDBSize;
                 if(sVersion >= 3){
                     iPosSec = 512 * sAngl[iHlf + iNum];
-                    iPosSecImage = iPosSec + 511 - iFreq;
+                    iPosSecImage = iPosSec + iNumero;
                     iPosSec += iFreq;
                     if(iPosSecImage >= iDBSize)
                         iPosSecImage -= iDBSize;
@@ -981,7 +1033,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                 
                 //              Superimpose Temporal HRTF on spectrum of reference signal (left channel)
                     dSpL = realRight[sAnglRef] * ((double)sHrtf[iPos] + (double)sHrtf[iPosSec]) / dWAtt;
-                    dSpImageL = realRight[iSize - sAnglRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
+                    dSpImageL = realRight[sRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
                     dPh = ((double)sPhase[iPos] + (double)sPhase[iPosSec]) / 20000.0;
                     if(abs(sPhase[iPos] - sPhase[iPosSec]) > 31415){
                         if(dPh < 0)
@@ -997,18 +1049,18 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                         else
                             dPh -= M_PI;
                     }
-                    dPhaseImageL = imageRight[iSize - sAnglRef] + dPh;
+                    dPhaseImageL = imageRight[sRef] + dPh;
                 }
                 else{
                     dSpL = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
-                    dSpImageL = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
+                    dSpImageL = realRight[sRef] * (double)sHrtf[iPosImage] / dAtt;
                     dPhaseL = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
-                    dPhaseImageL = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                    dPhaseImageL = imageRight[sRef] + (double)sPhase[iPosImage] / 10000.0;
                 }
                 
                 //              Construct Temporal HRTF by using HRTF database (right channel)
                 iPos = 512 * sAngr[iNum] + iFreq;
-                iPosImage = 512 * sAngr[iNum] + 511 - iFreq;
+                iPosImage = 512 * sAngr[iNum] + iNumero;
                 if(iPosImage >= iDBSize)
                     iPosImage -= iDBSize;
                 else if(iPosImage < 0)
@@ -1019,7 +1071,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     iPos += iDBSize;
                 if(sVersion >= 3){
                     iPosSec = 512 * sAngr[iHlf + iNum];
-                    iPosSecImage = iPosSec + 511 - iFreq;
+                    iPosSecImage = iPosSec + iNumero;
                     iPosSec += iFreq;
                     if(iPosSecImage >= iDBSize)
                         iPosSecImage -= iDBSize;
@@ -1032,7 +1084,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                 
                 //              Superimpose Temporal HRTF on spectrum of reference signal (right channel)
                     dSpR = realRight[sAnglRef] * ((double)sHrtf[iPos] + (double)sHrtf[iPosSec]) / dWAtt;
-                    dSpImageR = realRight[iSize - sAnglRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
+                    dSpImageR = realRight[sRef] * ((double)sHrtf[iPosImage] + (double)sHrtf[iPosSecImage]) / dWAtt;
                     dPh = ((double)sPhase[iPos] + (double)sPhase[iPosSec]) / 20000.0;
                     if(abs(sPhase[iPos] - sPhase[iPosSec]) > 31415){
                         if(dPh < 0)
@@ -1048,24 +1100,44 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                         else
                             dPh -= M_PI;
                     }
-                    dPhaseImageR = imageRight[iSize - sAnglRef] + dPh;
+                    dPhaseImageR = imageRight[sRef] + dPh;
                     
                 }
                 else{
                     dSpR = realRight[sAnglRef] * (double)sHrtf[iPos] / dAtt;
-                    dSpImageR = realRight[iSize - sAnglRef] * (double)sHrtf[iPosImage] / dAtt;
+                    dSpImageR = realRight[sRef] * (double)sHrtf[iPosImage] / dAtt;
                     dPhaseR = imageRight[sAnglRef] + (double)sPhase[iPos] / 10000.0;
-                    dPhaseImageR = imageRight[iSize - sAnglRef] + (double)sPhase[iPosImage] / 10000.0;
+                    dPhaseImageR = imageRight[sRef] + (double)sPhase[iPosImage] / 10000.0;
+                }
+                if(bCardioid == 2){
+                    sPos = sAngl[iNum] * sizeof(double);
+                    [sharpAtt getBytes: &dV range: NSMakeRange(sPos,sizeof(double))];
+                    dAttRt[sAnglRef] += dV;
+                    dAttRt[sAnglRef] /= 2;
+                    dSpL *= dAttRt[sAnglRef];
+                    dSpImageL *= dAttRt[sAnglRef];
+                    dSpR *= dAttRt[sAnglRef];
+                    dSpImageR *= dAttRt[sAnglRef];
+                }
+                else if(bCardioid == 1){
+                    sPos = sAngl[iNum] * sizeof(double);
+                    [softAtt getBytes: &dV range: NSMakeRange(sPos,sizeof(double))];
+                    dAttRt[sAnglRef] += dV;
+                    dAttRt[sAnglRef] /= 2;
+                    dSpL *= dAttRt[sAnglRef];
+                    dSpImageL *= dAttRt[sAnglRef];
+                    dSpR *= dAttRt[sAnglRef];
+                    dSpImageR *= dAttRt[sAnglRef];
                 }
             }
             realLeft[sAnglRef] = dSpL * cos(dPhaseL);
             realRight[sAnglRef] = dSpR * cos(dPhaseR);
             imageLeft[sAnglRef] = dSpL * sin(dPhaseL);
             imageRight[sAnglRef] = dSpR * sin(dPhaseR);
-            realLeft[iSize - sAnglRef] = dSpImageL * cos(dPhaseImageL);
-            realRight[iSize - sAnglRef] = dSpImageR * cos(dPhaseImageR);
-            imageLeft[iSize - sAnglRef] = dSpImageL * sin(dPhaseImageL);
-            imageRight[iSize - sAnglRef] = dSpImageR * sin(dPhaseImageR);
+            realLeft[sRef] = dSpImageL * cos(dPhaseImageL);
+            realRight[sRef] = dSpImageR * cos(dPhaseImageR);
+            imageLeft[sRef] = dSpImageL * sin(dPhaseImageL);
+            imageRight[sRef] = dSpImageR * sin(dPhaseImageR);
         }
         
         dSpR = realRight[iHlf];
@@ -1080,34 +1152,41 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
         for(iNum = 0;iNum < iSize;iNum ++){
             realLeft[iNum] *= dHan[iNum];
             realRight[iNum] *= dHan[iNum];
+            iNumero = iNum * 2;
             
             if(numBytesWritten == 0){
                 nSin = realLeft[iNum];
                 nAdr = &nSin;
-                [ResultLeft replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
 
                 nSin = realRight[iNum];
                 nAdr = &nSin;
-                [ResultRight replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+                [ResultRight replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
             }
             else{
-                [ResultLeft getBytes:&nSin range:NSMakeRange(iNum * 2,2)];
-                nSin += (SInt16)realLeft[iNum];
-                if(nSin > 32767)
-                    nSin = 32767;
-                else if(nSin < -32768)
-                    nSin = -32768;
+                [ResultLeft getBytes:&nSin range:NSMakeRange(iNumero,2)];
+                iPos = (SInt32)nSin + (SInt32)realLeft[iNum];
+                if(iPos > 32767){
+                    iPos = 32767;
+                }
+                else if(iPos < -32768){
+                    iPos = -32768;
+                }
+                nSin = (SInt16)iPos;
                 nAdr = &nSin;
-                [ResultLeft replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
                 
-                [ResultRight getBytes:&nSin range:NSMakeRange(iNum * 2,2)];
-                nSin += (SInt16)realRight[iNum];
-                if(nSin > 32767)
-                    nSin = 32767;
-                else if(nSin < -32768)
-                    nSin = -32768;
+                [ResultRight getBytes:&nSin range:NSMakeRange(iNumero,2)];
+                iPos = (SInt32)nSin + (SInt32)realRight[iNum];
+                if(iPos > 32767){
+                    iPos = 32767;
+                }
+                else if(iPos < -32768){
+                    iPos = -32768;
+                }
+                nSin = (SInt16)iPos;
                 nAdr = &nSin;
-                [ResultRight replaceBytesInRange:NSMakeRange(iNum * 2,2) withBytes:nAdr length:2];
+                [ResultRight replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
             }
         }
         
@@ -1116,6 +1195,7 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             iMarg += iSize * 4;
         nBytesReady = nBytesRead - iMarg;
         for(iCount = 0;iCount < iSize;iCount ++){
+            iNumero = iCount * 2;
             if(iCount < iProc){
                 if(inBuffer->mAudioData == nil){
                     UIAlertView *alert = [[UIAlertView alloc]
@@ -1135,10 +1215,10 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
                     
                     return;
                 }
-                [ResultLeft getBytes:&nSin range:NSMakeRange(iCount * 2,2)];
+                [ResultLeft getBytes:&nSin range:NSMakeRange(iNumero,2)];
                 *output = nSin;
                 output++;
-                [ResultRight getBytes:&nSin range:NSMakeRange(iCount * 2,2)];
+                [ResultRight getBytes:&nSin range:NSMakeRange(iNumero,2)];
                 *output = nSin;
                 output++;
                 iBufSize += 4;
@@ -1169,17 +1249,17 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             if(iCount < iRem){
                 [ResultLeft getBytes:&nSin range:NSMakeRange((iCount + iProc) * 2,2)];
                 nAdr = &nSin;
-                [ResultLeft replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
 
                 [ResultRight getBytes:&nSin range:NSMakeRange((iCount + iProc) * 2,2)];
                 nAdr = &nSin;
-                [ResultRight replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
+                [ResultRight replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
             }
             else{
                 nSin = 0;
                 nAdr = &nSin;
-                [ResultLeft replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
-                [ResultRight replaceBytesInRange:NSMakeRange(iCount * 2,2) withBytes:nAdr length:2];
+                [ResultLeft replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
+                [ResultRight replaceBytesInRange:NSMakeRange(iNumero,2) withBytes:nAdr length:2];
             }
         }
         if(isSequel && lBytesDone > 0 && !isProceed && isLoaded){
@@ -1222,13 +1302,6 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
             [self stop:YES];
         }
     }
-    if(!isPlaying){
-        sAngl = nil;
-        sAngr = nil;
-        sStream = nil;
-        ResultLeft = nil;
-        ResultRight = nil;
-    }
 }
 
 -(SInt16)convertDir:(SInt16)dir{
@@ -1250,12 +1323,330 @@ static void outputCallback(void *inUserData,AudioQueueRef inAQ,AudioQueueBufferR
     return sRet;
 }
 
+-(void) initCoord:(int)iSector{
+    CC3Vector coord,reverse;
+    double nUnitLong;
+    double nUnitHori;
+    double nHoriAngl;
+    double nUnitLat = M_PI / 12;
+    
+    if(iSector >= 127)
+        return;
+    
+    if(iSector == 0){
+        coord.x = coord.z = 0;
+        coord.y = 1;
+    }
+    else if(iSector < 9){
+        nUnitLong = M_PI / 4.0;
+        nUnitHori = cos(nUnitLat * 5);
+        
+        coord.y = sin(nUnitLat * 5);
+        nHoriAngl = nUnitLong * ((double)iSector - 1) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    else if(iSector < 25){
+        nUnitLong = M_PI / 8;
+        nUnitHori = cos(nUnitLat * 4);
+        
+        coord.y = sin(nUnitLat * 4);
+        nHoriAngl = nUnitLong * ((double)iSector - 9) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    else if(iSector < 49){
+        nUnitLong = M_PI / 12;
+        nUnitHori = cos(nUnitLat * 3);
+        
+        coord.y = sin(nUnitLat * 3);
+        nHoriAngl = nUnitLong * ((double)iSector - 25) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    else if(iSector < 79){
+        nUnitLong = M_PI / 15;
+        nUnitHori = cos(nUnitLat * 2);
+        
+        coord.y = sin(nUnitLat * 2);
+        nHoriAngl = nUnitLong * ((double)iSector - 49) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    else if(iSector < 111){
+        nUnitLong = M_PI / 16;
+        nUnitHori = cos(nUnitLat);
+        
+        coord.y = sin(nUnitLat);
+        nHoriAngl = nUnitLong * ((double)iSector - 79) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    else{
+        nUnitLong = M_PI / 16;
+        nUnitHori = 1.0;
+        coord.y = 0;
+        
+        nHoriAngl = nUnitLong * ((double)iSector - 111) - M_PI;
+        
+        coord.x = nUnitHori * sin(nHoriAngl);
+        coord.z = nUnitHori * cos(nHoriAngl);
+    }
+    vecAngl[iSector] = coord;
+    reverse.x = -coord.x;
+    reverse.y = -coord.y;
+    reverse.z = -coord.z;
+    vecAngl[253 - iSector] = reverse;
+}
+
+-(quaternion)qMult:(quaternion)left withQuatarnion:(quaternion)right{
+    quaternion   qRet;
+    double   d1, d2, d3, d4;
+    
+    d1   =  left.fReal * right.fReal;
+    d2   = -left.fX * right.fX;
+    d3   = -left.fY * right.fY;
+    d4   = -left.fZ * right.fZ;
+    qRet.fReal = d1+ d2+ d3+ d4;
+    
+    d1   =  left.fReal * right.fX;
+    d2   =  right.fReal * left.fX;
+    d3   =  left.fY * right.fZ;
+    d4   = -left.fZ * right.fY;
+    qRet.fX =  d1+ d2+ d3+ d4;
+    
+    d1   =  left.fReal * right.fY;
+    d2   =  right.fReal * left.fY;
+    d3   =  left.fZ * right.fX;
+    d4   = -left.fX * right.fZ;
+    qRet.fY =  d1+ d2+ d3+ d4;
+    
+    d1   =  left.fReal * right.fZ;
+    d2   =  right.fReal * left.fZ;
+    d3   =  left.fX * right.fY;
+    d4   = -left.fY * right.fX;
+    qRet.fZ =  d1+ d2+ d3+ d4;
+    
+    return   qRet;
+}
+
+-(CC3Vector)vecRotate:(CC3Vector)vecOrig aroundVec:(CC3Vector)vecAxis byRad:(float)fRad{
+    
+    quaternion qQ,qR,qRet;
+    quaternion qOrig;
+    
+    qOrig.fReal = 0;
+    qOrig.fX = vecOrig.x;
+    qOrig.fY = vecOrig.y;
+    qOrig.fZ = vecOrig.z;
+    
+    float fCos = cos(fRad / 2);
+    float fSin = sin(fRad / 2);
+    
+    qQ.fReal = fCos;
+    qQ.fX = vecAxis.x * fSin;
+    qQ.fY = vecAxis.y * fSin;
+    qQ.fZ = vecAxis.z * fSin;
+    
+    qR.fReal = fCos;
+    qR.fX = -vecAxis.x * fSin;
+    qR.fY = -vecAxis.y * fSin;
+    qR.fZ = -vecAxis.z * fSin;
+    
+    qRet = [self qMult:qR withQuatarnion:qOrig];
+    qOrig = [self qMult:qRet withQuatarnion:qQ];
+    
+    vecOrig.x = qOrig.fX;
+    vecOrig.y = qOrig.fY;
+    vecOrig.z = qOrig.fZ;
+    
+    return vecOrig;
+}
+
+-(SInt16)rollSector:(SInt16)iSector byRoll:(double)nRoll{
+    int iNewSect;
+    CC3Vector vecNew;
+    
+    vecNew.x = -(cos(nRoll) * vecAngl[iSector].x - sin(nRoll) * vecAngl[iSector].y);
+    vecNew.y = sin(nRoll) * vecAngl[iSector].x + cos(nRoll) * vecAngl[iSector].y;
+    vecNew.z = -vecAngl[iSector].z;
+    iNewSect = [self calcSector:vecNew];
+    
+    return(iNewSect);
+}
+
+-(SInt16) modifySector:(int)iSector withPan:(double) nPan withTilt:(double)nTilt{
+    int iNewSect;
+    CC3Vector vecUp,vecNew;
+    CC3Vector vecRight;
+    
+    if(iSector > 253)
+        return iSector;
+    
+    vecUp = CC3VectorMake(0,1,0);
+    vecRight = CC3VectorMake(1,0,0);
+    
+    vecRight = [self vecRotate:vecRight aroundVec:vecUp byRad:nPan];
+    vecNew = [self vecRotate:vecAngl[iSector] aroundVec:vecUp byRad:-nPan];
+    vecNew = [self vecRotate:vecNew aroundVec:vecRight byRad:-nTilt];
+    iNewSect = [self calcSector:vecNew];
+    
+    return(iNewSect);
+}
+
+-(int) calcSector:(CC3Vector)coor{
+    int iSector;
+    double nHoriAngl;
+    
+    if(coor.y >= sin(M_PI * 11 / 24))
+        return 0;
+    else if(coor.y <= -sin(M_PI * 11 / 24))
+        return 253;
+    else
+        nHoriAngl = atan2(coor.x,coor.z);
+    
+    if(fabs(coor.y) >= sin(M_PI * 3 / 8)){
+        if(nHoriAngl < 0)
+            nHoriAngl += dWPi;
+        iSector = (int)(1 + nHoriAngl / (M_PI / 4));
+    }
+    else if(coor.y <= -sin(M_PI * 3 / 8))
+        iSector = (int)(248.0 - nHoriAngl / (M_PI / 4));
+    else if(coor.y >= sin(M_PI * 7 / 24)){
+        if(nHoriAngl < 0)
+            nHoriAngl += dWPi;
+        iSector = (int)(9.0 + nHoriAngl / (M_PI / 8));
+    }
+    else if(coor.y <= -sin(M_PI * 7 / 24))
+        iSector = (int)(236.0 - nHoriAngl / (M_PI / 8));
+    else if(coor.y >= sin(M_PI * 5 / 24)){
+        if(nHoriAngl < 0)
+            nHoriAngl += dWPi;
+        iSector = (int)(25 + nHoriAngl / (M_PI / 12));
+    }
+    else if(coor.y <= -sin(M_PI * 5 / 24))
+        iSector = (int)(216.0 - nHoriAngl / (M_PI / 12.0));
+    else if(coor.y >= sin(M_PI / 8)){
+        if(nHoriAngl < 0)
+            nHoriAngl += dWPi;
+        iSector = (int)(49.0 + nHoriAngl / (M_PI / 15.0));
+    }
+    else if(coor.y <= -sin(M_PI / 8))
+        iSector = (int)(189.0 - nHoriAngl / (M_PI / 15.0));
+    else if(coor.y >= sin(M_PI / 24)){
+        if(nHoriAngl < 0)
+            nHoriAngl += dWPi;
+        iSector = (int)(79.0 + nHoriAngl / (M_PI / 16.0));
+    }
+    else if(coor.y <= -sin(M_PI / 24))
+        iSector = (int)(158.0 - nHoriAngl / (M_PI / 16.0));
+    else if(nHoriAngl < 0)
+        iSector = (int)(127.0 - nHoriAngl / (M_PI / 16.0));
+    else
+        iSector = (int)(111.0 + nHoriAngl / (M_PI / 16.0));
+    
+    return iSector;
+}
+
+/****************************************************************
+ * 				Flip direction (right to left)					*
+ ****************************************************************/
+
+-(SInt16) opposite:(SInt16)right{
+    if(right == 0 || right >= 253)
+        return(right);
+    else if(right < 9){
+        if(right == 1)
+            return(right);
+        else
+            return(10 - right);
+    }
+    else if(right < 25){
+        if(right == 9)
+            return(right);
+        else
+            return(34 - right);
+    }
+    else if(right < 49){
+        if(right == 25)
+            return(right);
+        else
+            return(74 - right);
+    }
+    else if(right < 79){
+        if(right == 49)
+            return(right);
+        else
+            return(128 - right);
+    }
+    else if(right < 111){
+        if(right == 79)
+            return(right);
+        else
+            return(190 - right);
+    }
+    else if(right < 127){
+        if(right == 111)
+            return(right);
+        else
+            return(15 + right);
+    }
+    else if(right < 143){
+        if(right == 142)
+            return(right);
+        else
+            return(right - 15);
+    }
+    else if(right < 175){
+        if(right == 174)
+            return(right);
+        else
+            return(316 - right);
+    }
+    else if(right < 205){
+        if(right == 204)
+            return(right);
+        else
+            return(378 - right);
+    }
+    else if(right < 229){
+        if(right == 228)
+            return(right);
+        else
+            return(432 - right);
+    }
+    else if(right < 245){
+        if(right == 244)
+            return(right);
+        else
+            return(472 - right);
+    }
+    else{
+        if(right == 252)
+            return(right);
+        else
+            return(496 - right);
+    }
+}
+
 -(void)finalize{
     free(sHrtf);
     free(sPhase);
+    
     free(dHan);
     free(sAngl);
     free(sAngr);
+    free(dAttRt);
+    
+    dHan = nil;
+    sAngl = nil;
+    sAngr = nil;
+    dAttRt = nil;
 
     if(sopaQueueObject)
         AudioQueueDispose(sopaQueueObject,YES);

@@ -41,6 +41,7 @@
 @property UInt32 numOffset;
 @property UInt32 nBytesRead;
 @property UInt32 nBytesReady;
+@property Byte bCardioid;
 @property BOOL nTrial;
 @property BOOL isLoaded;
 @property BOOL isPrepared;
@@ -59,6 +60,9 @@
 @property SInt16 iStage;
 @property SInt16 iFileNum;
 @property SInt16 iMilliSecIntvl;
+@property SInt16 iAzim;
+@property SInt16 iElev;
+@property SInt16 iRoll;
 @property UInt16 iDirNum;
 @property (strong)NSURLConnection *myConn;
 @property (strong)NSURLConnection *databaseConn;
@@ -68,11 +72,11 @@
 @property long long expectedLength;
 @property long lChunkSize;
 @property long lBytesDone;
-@property NSMutableData *dirID;
-@property NSMutableData *dilID;
 @property NSMutableData *sStream;
 @property NSMutableData *ResultLeft;
 @property NSMutableData *ResultRight;
+@property NSMutableData *softAtt;
+@property NSMutableData *sharpAtt;
 
 -(void)play;
 -(void)loadDatabase;

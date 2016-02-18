@@ -2,29 +2,28 @@
 //  OpenGLView.m
 //  mySopa
 //
-//  Created by Kaoru Ashihara on 29 Mar. 2014
-//  Copyright (c) 2014, AIST. All rights reserved.
+//  Created by Kaoru Ashihara on 5 Nov. 2015
+//  Copyright (c) 2015, AIST. All rights reserved.
 //
 
 #import "OpenGLView.h"
 #import "CC3GLMatrix.h"
+
+static const double dWPi = M_PI * 2;
 
 @implementation OpenGLView{
     NSString *labelText,*offText,*onText,*mtnText;
     NSMutableData *async_data;
     NSURL *jpgURL;
     float fStamp;
-    double dYaw;
-    double dPitch;
     double dThrsld;
-    double dPan,dTilt;
     double dCurrentX,dCurrentY;
     BOOL isTerminatedByUser;
-    BOOL isBtnOn,isPad,isPrepared;
+    BOOL isPad,isPrepared;
+    BOOL isBtnOn,isRollOn;
     BOOL isSearchJpg;
     BOOL isImageLoading;
     BOOL isImageReady;
-    UInt16 uPitchRoll;
     UInt16 uJpgNum;
     SInt16 sWidth,sHeight;
     SInt16 imageWidth,imageHeight;
@@ -33,10 +32,9 @@
     CC3Vector vecVer;
     CC3Vector vecHor;
     CC3Vector vecAt,vecUp;
-    CC3Vector vecDir[127];
     UILabel *myLabel;
-    UILabel *mtnLabel,*tiltLabel;
-    UIButton *mtnBtn,*tiltBtn;
+    UILabel *mtnLabel,*polarLabel,*rollLabel;
+    UIButton *polarBtn,*rollBtn;
     GLubyte *spriteData;
 }
 
@@ -58,6 +56,8 @@
 @synthesize iMilliSecIntvl;
 @synthesize nSR;
 @synthesize expectedLength;
+@synthesize dAzim;
+@synthesize dElev;
 @synthesize dRoll;
 
 typedef struct {
@@ -191,7 +191,6 @@ const GLubyte Indices[] = {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (int)width, (int)height, 0, GL_RGBA, GL_UNSIGNED_BYTE, spriteData);
         free(spriteData);
         
-        dTilt = dPan = 0;
         dCurrentX = dCurrentY = imageWidth;
         [self openScroller];
     }
@@ -211,12 +210,16 @@ const GLubyte Indices[] = {
     sMotion = 0;
     isManagerOn = NO;
     isBtnOn = NO;
+    isRollOn = NO;
     isPrepared = NO;
     isImageLoading = NO;
     isImageReady = NO;
     isSequel = NO;
     isSS = NO;
     uJpgNum = 0;
+    dAzim = 0;
+    dElev = 0;
+    dRoll = 0;
     
     self = [super initWithFrame:frame];
     if(self){
@@ -234,34 +237,29 @@ const GLubyte Indices[] = {
             btnUnit = sWidth / 12;
         else
             btnUnit = sHeight /12;
-        dYaw = dPitch = 0;
-        dRoll = 0;
         
-        mtnBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-        mtnBtn.frame = CGRectMake(sWidth * 4 / 5,sHeight * 5 / 6,btnUnit,btnUnit);
-        mtnBtn.backgroundColor = [UIColor orangeColor];
-        [mtnBtn setOpaque: YES];
-        [mtnBtn setAlpha:0.25f];
-        [mtnBtn addTarget:self action:@selector(btnOnOff:) forControlEvents:UIControlEventTouchDown];
-        
-        tiltBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-        tiltBtn.frame = CGRectMake(sWidth / 16,sHeight * 5 / 6,btnUnit,btnUnit);
-        tiltBtn.backgroundColor = [UIColor yellowColor];
-        [tiltBtn setOpaque:YES];
-        [tiltBtn setAlpha:0.25f];
-        [tiltBtn addTarget:self action:@selector(tiltOnOff:) forControlEvents:UIControlEventTouchDown];
+        polarBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+        if(myOrientation == UIInterfaceOrientationPortrait)
+            polarBtn.frame = CGRectMake(sWidth * 11 / 24,sHeight * 7 / 8,btnUnit,btnUnit);
+        else
+            polarBtn.frame = CGRectMake(sWidth * 11 / 24,sHeight * 5 / 6,btnUnit,btnUnit);
+        polarBtn.backgroundColor = [UIColor greenColor];
+        [polarBtn setOpaque:YES];
+        [polarBtn setAlpha:0.25f];
+        [polarBtn addTarget:self action:@selector(cardioidOnOff:) forControlEvents:UIControlEventTouchDown];
         
         _manager = [[CMMotionManager alloc]init];
-        if(!_manager.gyroAvailable){
-            mtnBtn.enabled = NO;
-            mtnText = @"Gyro is not available";
-            offText = @"Pitch is off";
-            onText = @"Pitch is on";
-        }
-        else{
-            mtnText = @"Self Motion";
-            offText = @"Pitch, roll are off";
-            onText = @"Pitch, roll are on";
+        if(_manager.gyroAvailable){
+            rollBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+            rollBtn.frame = CGRectMake(sWidth / 16,sHeight * 5 / 6,btnUnit,btnUnit);
+            rollBtn.backgroundColor = [UIColor yellowColor];
+            [rollBtn setOpaque:YES];
+            [rollBtn setAlpha:0.5f];
+            [rollBtn addTarget:self action:@selector(rollOnOff:) forControlEvents:UIControlEventTouchDown];
+            
+            isBtnOn = YES;
+            offText = @"Roll is off";
+            onText = @"Roll is on";
         }
         
         [self setupLayer];
@@ -302,8 +300,10 @@ const GLubyte Indices[] = {
 }
 
 -(void)makeWorld{
-    double dVal,dCos;
-    float fY,fX,fZ;
+    double dVal,dCos,dAngl;
+    double dSoftAtt[254];
+    double dSharpAtt[254];
+    float fZ;
     SInt16 sInt;
     NSString *tmpStr;
     NSURL *tmpUrl;
@@ -317,6 +317,7 @@ const GLubyte Indices[] = {
     player.isSS = isSS;
     player.iFileNum = iFirstSopa;
     player.iMilliSecIntvl = iMilliSecIntvl;
+    player.bCardioid = 0;
     
     tmpStr = [self.urlStr substringToIndex:self.urlStr.length - 7];
     if(player.isSequel){
@@ -330,156 +331,160 @@ const GLubyte Indices[] = {
         jpgURL = [myURL URLByAppendingPathExtension:@"jpg"];
     }
 
-    mtnLabel = [[UILabel alloc]init];
-    mtnLabel.text = mtnText;
-    if(isPad){
-        mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 4 / 5,sHeight * 3 / 4,sWidth / 4,sHeight / 16)];
-        mtnLabel.textAlignment = NSTextAlignmentLeft;
+    if(!_manager.gyroAvailable){
+        mtnText = @"Gyro is not available";
+        mtnLabel = [[UILabel alloc]init];
+        mtnLabel.text = mtnText;
+        if(isPad){
+            mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 4 / 5,sHeight * 3 / 4,sWidth / 4,sHeight / 16)];
+            mtnLabel.textAlignment = NSTextAlignmentLeft;
+        }
+        else{
+            mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 7 / 10,sHeight * 3 / 4,sWidth / 3,sHeight / 16)];
+            mtnLabel.textAlignment = NSTextAlignmentCenter;
+        }
+        mtnLabel.backgroundColor = [UIColor clearColor];
+        mtnLabel.textColor = [UIColor lightTextColor];
+        mtnLabel.shadowOffset = CGSizeMake(1,1);
+        mtnLabel.shadowColor = [UIColor darkTextColor];
     }
-    else{
-        mtnLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 7 / 10,sHeight * 3 / 4,sWidth / 3,sHeight / 16)];
-        mtnLabel.textAlignment = NSTextAlignmentCenter;
-    }
-    mtnLabel.backgroundColor = [UIColor clearColor];
-    mtnLabel.textColor = [UIColor lightTextColor];
-    mtnLabel.shadowOffset = CGSizeMake(1,1);
-    mtnLabel.shadowColor = [UIColor darkTextColor];
+    else
+        [self gyroOnOff];
     
-    tiltLabel = [[UILabel alloc]init];
-    tiltLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth / 16,sHeight * 3 / 4,sWidth,sHeight / 16)];
-    tiltLabel.textAlignment = NSTextAlignmentLeft;
-    tiltLabel.backgroundColor = [UIColor clearColor];
-    tiltLabel.textColor = [UIColor lightTextColor];
-    tiltLabel.shadowOffset = CGSizeMake(1,1);
-    tiltLabel.shadowColor = [UIColor darkTextColor];
+    rollLabel = [[UILabel alloc]init];
+    rollLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth / 18,sHeight * 3 / 4,sWidth,sHeight / 16)];
+    rollLabel.textAlignment = NSTextAlignmentLeft;
+    rollLabel.backgroundColor = [UIColor clearColor];
+    rollLabel.textColor = [UIColor lightTextColor];
+    rollLabel.shadowOffset = CGSizeMake(1,1);
+    rollLabel.shadowColor = [UIColor darkTextColor];
+    rollLabel.text = offText;
+    
+    if(myOrientation == UIInterfaceOrientationPortrait)
+        polarLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 5 / 12,sHeight * 4 / 5,sWidth,sHeight / 16)];
+    else
+        polarLabel = [[UILabel alloc]initWithFrame:CGRectMake(sWidth * 5 / 12,sHeight * 3 / 4,sWidth,sHeight / 16)];
+    polarLabel.textAlignment = NSTextAlignmentLeft;
+    polarLabel.backgroundColor = [UIColor clearColor];
+    polarLabel.textColor = [UIColor lightTextColor];
+    polarLabel.shadowOffset = CGSizeMake(1,1);
+    polarLabel.shadowColor = [UIColor darkTextColor];
     
     vecAt = CC3VectorMake(0,0,1);
     vecUp = CC3VectorMake(0,1,0);
     vecVer = CC3VectorMake(0,1,0);
     vecHor = CC3VectorCross(vecUp,vecAt);
     
-    vecDir[0] = CC3VectorMake(0,1,0);
-    
     if(is3d){
+        dSoftAtt[0] = dSoftAtt[253] = 0.5;
+        dSharpAtt[0] = dSharpAtt[253] = 0.25;
         for(sInt = 1;sInt < 9;sInt ++){
             dVal = 5 * M_PI / 12;
-            fY = sin(dVal);
             dCos = cos(dVal);
             dVal = (double)sInt - 1;
             dVal *= M_PI / 4;
             fZ = cos(dVal) * dCos;
-            fX = sin(dVal) * dCos;
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
         }
         for(sInt = 9;sInt < 25;sInt ++){
             dVal = M_PI / 3;
-            fY = sin(dVal);
             dCos = cos(dVal);
             dVal = (double)sInt - 9;
             dVal *= M_PI / 8;
             fZ = cos(dVal) * dCos;
-            fX = sin(dVal) * dCos;
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
         }
         for(sInt = 25;sInt < 49;sInt ++){
             dVal = M_PI / 4;
-            fY = sin(dVal);
             dCos = cos(dVal);
             dVal = (double)sInt - 25;
             dVal *= M_PI / 12;
             fZ = cos(dVal) * dCos;
-            fX = sin(dVal) * dCos;
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
         }
         for(sInt = 49;sInt < 79;sInt ++){
             dVal = M_PI / 6;
-            fY = sin(dVal);
             dCos = cos(dVal);
             dVal = (double)sInt - 49;
             dVal *= M_PI / 15;
             fZ = cos(dVal) * dCos;
-            fX = sin(dVal) * dCos;
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
         }
         for(sInt = 79;sInt < 111;sInt ++){
             dVal = M_PI / 12;
-            fY = sin(dVal);
             dCos = cos(dVal);
             dVal = (double)sInt - 79;
             dVal *= M_PI / 16;
             fZ = cos(dVal) * dCos;
-            fX = sin(dVal) * dCos;
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
         }
         for(sInt = 111;sInt < 127;sInt ++){
-            fY = 0;
             dVal = (double)sInt - 111;
             dVal *= M_PI / 16;
             fZ = cos(dVal);
-            fX = sin(dVal);
-            vecDir[sInt] = CC3VectorMake(-fX, fY, fZ);
+            dAngl = atan2(sqrt(1 - fZ * fZ),fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            dAngl = atan2(sqrt(1 - fZ * fZ),-fZ);
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[253 - sInt] = dVal;
+            dSharpAtt[253 - sInt] = dVal * dVal;
+        }
+        for(sInt = 0;sInt < 254;sInt ++){
+            [player.softAtt appendBytes:&dSoftAtt[sInt] length:sizeof(double)];
+            [player.sharpAtt appendBytes:&dSharpAtt[sInt] length:sizeof(double)];
         }
     }
     else{
-        fY = 0;
+        dVal = 1;
+        [player.softAtt appendBytes:&dVal length:sizeof(double)];
+        [player.sharpAtt appendBytes:&dVal length:sizeof(double)];
         for(sInt = 1;sInt <= 72;sInt ++){
-            dVal = (double)sInt * M_PI / 36;
-            dVal -= M_PI;
-            fZ = cos(dVal);
-            fX = sin(dVal);
-            vecDir[sInt] = CC3VectorMake(-fX,fY,fZ);
+            dAngl = (double)sInt * M_PI / 36;
+            dAngl -= M_PI;
+            dVal = (1 + cos(dAngl)) / 2;
+            dSoftAtt[sInt] = dVal;
+            dSharpAtt[sInt] = dVal * dVal;
+            [player.softAtt appendBytes:&dSoftAtt[sInt] length:sizeof(double)];
+            [player.sharpAtt appendBytes:&dSharpAtt[sInt] length:sizeof(double)];
         }
     }
-}
-
--(void)tiltOnOff:(UIButton*)btn{
-    if(uPitchRoll == 2){
-        uPitchRoll = 0;
-        [tiltBtn setAlpha:0.25f];
-        tiltLabel.text = offText;
-    }
-    else if(uPitchRoll == 0){
-        uPitchRoll = 1;
-        [tiltBtn setAlpha:0.5f];
-        tiltLabel.text = @"Pitch is on";
-    }
-    else{
-        if(isBtnOn){
-            uPitchRoll = 2;
-            [tiltBtn setAlpha:0.75f];
-            tiltLabel.text = onText;
-        }
-        else{
-            uPitchRoll = 0;
-            [tiltBtn setAlpha:0.25f];
-            tiltLabel.text = offText;
-        }
-    }
-}
-
--(void)btnOnOff:(UIButton*)btn{
-    if(isBtnOn){
-        isBtnOn = NO;
-        [mtnBtn setAlpha:0.25f];
-        mtnLabel.text = @"Self motion";
-        if(uPitchRoll > 0){
-            tiltLabel.text = @"Pitch is on";
-            if(uPitchRoll == 2){
-                uPitchRoll = 1;
-            }
-            [tiltBtn setAlpha:0.5f];
-        }
-    }
-    else{
-        isBtnOn = YES;
-        [mtnBtn setAlpha:0.75f];
-        mtnLabel.text = @"Gyro is on";
-        if(uPitchRoll == 2)
-            tiltLabel.text = onText;
-        else if(uPitchRoll == 1)
-            tiltLabel.text = @"Pitch is on";
-    }
-    [self gyroOnOff];
 }
 
 - (void)gyroOnOff
@@ -492,6 +497,39 @@ const GLubyte Indices[] = {
         if(_manager.gyroActive)
             [_manager stopGyroUpdates];
         self.isManagerOn = NO;
+    }
+}
+
+-(void)rollOnOff:(UIButton*)btn{
+    if(isRollOn){
+        isRollOn = NO;
+        [rollBtn setAlpha:0.5f];
+        rollLabel.text = offText;
+        if(dRoll != 0)
+            sMotion = 3;
+    }
+    else{
+        isRollOn = YES;
+        [rollBtn setAlpha:0.75f];
+        rollLabel.text = onText;
+    }
+}
+
+- (void)cardioidOnOff:(UIButton*)btn{
+    player.bCardioid ++;
+    if(player.bCardioid == 1){
+        [polarBtn setAlpha:0.5f];
+        polarLabel.text = @"Cardioid Soft";
+    }
+    else if(player.bCardioid == 2){
+        [polarBtn setAlpha:0.75f];
+        polarLabel.text = @"Cardioid Sharp";
+    }
+    else{
+        [polarBtn setAlpha:0.25f];
+        polarLabel.text = @"Omnidirectional";
+        if(player.bCardioid > 2)
+            player.bCardioid = 0;
     }
 }
 
@@ -510,70 +548,53 @@ const GLubyte Indices[] = {
             }
             double dElapsed = data.timestamp - fStamp;
             fStamp = data.timestamp;
-            if(uPitchRoll == 2){
-                if(fabs(data.rotationRate.x) > fabs(data.rotationRate.y)){
-                    if(fabs(data.rotationRate.x) > fabs(data.rotationRate.z)){
-                        if(fabs(data.rotationRate.x) > dMin){
-                            if(myOrientation == UIInterfaceOrientationPortrait){
-                                sMotion = 1;
-                                dPitch -= dElapsed * data.rotationRate.x;
-                            }
-                            else if(myOrientation == UIInterfaceOrientationLandscapeRight){
-                                sMotion = 2;
-                                dYaw -= dElapsed * data.rotationRate.x;
-                            }
-                            else{
-                                sMotion = 2;
-                                dYaw += dElapsed * data.rotationRate.x;
-                            }
-                        }
-                    }
-                    else{
-                        if(fabs(data.rotationRate.z) > dThrsld){
-                            sMotion = 3;
-                            dRoll += dElapsed * data.rotationRate.z;
-                        }
+
+            if(isRollOn){
+                if(fabs(data.rotationRate.z) > fabs(data.rotationRate.x) && fabs(data.rotationRate.z) > fabs(data.rotationRate.y)){
+                    if(fabs(data.rotationRate.z) > dThrsld){
+                        sMotion = 3;
+                        dRoll += dElapsed * data.rotationRate.z;
+                        if(dRoll > M_PI * 0.5)
+                            dRoll = M_PI * 0.5;
+                        else if(dRoll < -M_PI * 0.5)
+                            dRoll = -M_PI * 0.5;
+                        double dDir = dRoll * 36 / M_PI;
+                        player.iRoll = (SInt16)dDir + 18;
                     }
                 }
-                else{
-                    if(fabs(data.rotationRate.y) > fabs(data.rotationRate.z)){
-                        if(fabs(data.rotationRate.y) > dMin){
-                            if(myOrientation == UIInterfaceOrientationPortrait){
-                                sMotion = 2;
-                                dYaw -= dElapsed * data.rotationRate.y;
-                            }
-                            else if(myOrientation == UIInterfaceOrientationLandscapeRight){
-                                sMotion = 1;
-                                dPitch += dElapsed * data.rotationRate.y;
-                            }
-                            else{
-                                sMotion = 1;
-                                dPitch -= dElapsed * data.rotationRate.y;
-                            }
-                        }
-                    }
-                    else{
-                        if(fabs(data.rotationRate.z) > dThrsld){
-                            sMotion = 3;
-                            dRoll += dElapsed * data.rotationRate.z;
-                        }
-                    }
-                }
-            }
-            else if(uPitchRoll == 1){
-                if(fabs(data.rotationRate.x) < fabs(data.rotationRate.y)){
+                else if(fabs(data.rotationRate.x) < fabs(data.rotationRate.y)){
                     if(fabs(data.rotationRate.y) > dMin){
                         if(myOrientation == UIInterfaceOrientationPortrait){
                             sMotion = 2;
-                            dYaw -= dElapsed * data.rotationRate.y;
+                            dAzim -= dElapsed * data.rotationRate.y;
+                            if(dAzim > M_PI)
+                                dAzim -= dWPi;
+                            else if(dAzim <= -M_PI)
+                                dAzim += dWPi;
+                            double dDir = -dAzim * 36 / M_PI;
+                            if(dDir < 0)
+                                dDir += 72;
+                            player.iAzim = (SInt16)dDir;
                         }
                         else if(myOrientation == UIInterfaceOrientationLandscapeRight){
                             sMotion = 1;
-                            dPitch += dElapsed * data.rotationRate.y;
+                            dElev += dElapsed * data.rotationRate.y;
+                            if(dElev > M_PI * 0.4)
+                                dElev = M_PI * 0.4;
+                            else if(dElev < -M_PI * 0.4)
+                                dElev = -M_PI * 0.4;
+                            double dDir = dElev * 36 / M_PI;
+                            player.iElev = (SInt16)dDir + 18;
                         }
                         else{
                             sMotion = 1;
-                            dPitch -= dElapsed * data.rotationRate.y;
+                            dElev -= dElapsed * data.rotationRate.y;
+                            if(dElev > M_PI * 0.4)
+                                dElev = M_PI * 0.4;
+                            else if(dElev < -M_PI * 0.4)
+                                dElev = -M_PI * 0.4;
+                            double dDir = dElev * 36 / M_PI;
+                            player.iElev = (SInt16)dDir + 18;
                         }
                     }
                 }
@@ -581,31 +602,115 @@ const GLubyte Indices[] = {
                     if(fabs(data.rotationRate.x) > dMin){
                         if(myOrientation == UIInterfaceOrientationPortrait){
                             sMotion = 1;
-                            dPitch -= dElapsed * data.rotationRate.x;
+                            dElev -= dElapsed * data.rotationRate.x;
+                            if(dElev > M_PI * 0.4)
+                                dElev = M_PI * 0.4;
+                            else if(dElev < -M_PI * 0.4)
+                                dElev = -M_PI * 0.4;
+                            double dDir = dElev * 36 / M_PI;
+                            player.iElev = (SInt16)dDir + 18;
                         }
                         else if(myOrientation == UIInterfaceOrientationLandscapeRight){
                             sMotion = 2;
-                            dYaw -= dElapsed * data.rotationRate.x;
+                            dAzim -= dElapsed * data.rotationRate.x;
+                            if(dAzim > M_PI)
+                                dAzim -= dWPi;
+                            else if(dAzim <= -M_PI)
+                                dAzim += dWPi;
+                            double dDir = -dAzim * 36 / M_PI;
+                            if(dDir < 0)
+                                dDir += 72;
+                            player.iAzim = (SInt16)dDir;
                         }
                         else{
                             sMotion = 2;
-                            dYaw += dElapsed * data.rotationRate.x;
+                            dAzim += dElapsed * data.rotationRate.x;
+                            if(dAzim > M_PI)
+                                dAzim -= dWPi;
+                            else if(dAzim <= -M_PI)
+                                dAzim += dWPi;
+                            double dDir = -dAzim * 36 / M_PI;
+                            if(dDir < 0)
+                                dDir += 72;
+                            player.iAzim = (SInt16)dDir;
                         }
                     }
                 }
             }
             
-            else if(myOrientation == UIDeviceOrientationPortrait && fabs(data.rotationRate.y) > dMin){
-                sMotion = 2;
-                dYaw -= dElapsed * data.rotationRate.y;
+            else if(fabs(data.rotationRate.x) < fabs(data.rotationRate.y)){
+                if(fabs(data.rotationRate.y) > dMin){
+                    if(myOrientation == UIInterfaceOrientationPortrait){
+                        sMotion = 2;
+                        dAzim -= dElapsed * data.rotationRate.y;
+                        if(dAzim > M_PI)
+                            dAzim -= dWPi;
+                        else if(dAzim <= -M_PI)
+                            dAzim += dWPi;
+                        double dDir = -dAzim * 36 / M_PI;
+                        if(dDir < 0)
+                            dDir += 72;
+                        player.iAzim = (SInt16)dDir;
+                    }
+                    else if(myOrientation == UIInterfaceOrientationLandscapeRight){
+                        sMotion = 1;
+                        dElev += dElapsed * data.rotationRate.y;
+                        if(dElev > M_PI * 0.4)
+                            dElev = M_PI * 0.4;
+                        else if(dElev < -M_PI * 0.4)
+                            dElev = -M_PI * 0.4;
+                        double dDir = dElev * 36 / M_PI;
+                        player.iElev = (SInt16)dDir + 18;
+                    }
+                    else{
+                        sMotion = 1;
+                        dElev -= dElapsed * data.rotationRate.y;
+                        if(dElev > M_PI * 0.4)
+                            dElev = M_PI * 0.4;
+                        else if(dElev < -M_PI * 0.4)
+                            dElev = -M_PI * 0.4;
+                        double dDir = dElev * 36 / M_PI;
+                        player.iElev = (SInt16)dDir + 18;
+                    }
+                }
             }
-            else if(myOrientation == UIDeviceOrientationLandscapeRight && fabs(data.rotationRate.x) > dMin){
-                sMotion = 2;
-                dYaw += dElapsed * data.rotationRate.x;
+            else if(myOrientation == UIDeviceOrientationPortrait){
+                if(fabs(data.rotationRate.x) > dMin){
+                    sMotion = 1;
+                    dElev -= dElapsed * data.rotationRate.x;
+                    if(dElev > M_PI * 0.4)
+                        dElev = M_PI * 0.4;
+                    else if(dElev < -M_PI * 0.4)
+                        dElev = -M_PI * 0.4;
+                    double dDir = dElev * 36 / M_PI;
+                    player.iElev = (SInt16)dDir + 18;
+                }
+            }
+            else if(myOrientation == UIDeviceOrientationLandscapeRight){
+                if(fabs(data.rotationRate.x) > dMin){
+                    sMotion = 2;
+                    dAzim += dElapsed * data.rotationRate.x;
+                    if(dAzim > M_PI)
+                        dAzim -= dWPi;
+                    else if(dAzim < -M_PI)
+                        dAzim += dWPi;
+                    double dDir = -dAzim * 36 / M_PI;
+                    if(dDir < 0)
+                        dDir += 72;
+                    player.iAzim = (SInt16)dDir;
+                }
             }
             else if(fabs(data.rotationRate.x) > dMin){
                 sMotion = 2;
-                dYaw -= dElapsed * data.rotationRate.x;
+                dAzim -= dElapsed * data.rotationRate.x;
+                if(dAzim > M_PI)
+                    dAzim -= dWPi;
+                else if(dAzim < -M_PI)
+                    dAzim += dWPi;
+                double dDir = -dAzim * 36 / M_PI;
+                if(dDir < 0)
+                    dDir += 72;
+                player.iAzim = (SInt16)dDir;
             }
             
         };
@@ -686,176 +791,47 @@ const GLubyte Indices[] = {
 
 -(void)render:(CADisplayLink*)displayLink{
     float h;
-    double dNumero;
-    double dPt = dPitch;
-    double dYw = dYaw;
-    double dRl = dRoll;
-    SInt16 sInt,sVal;
-    SInt16 Numero[2];
+    SInt16 sRoll;
     CC3Vector vecSoundHor,vecSoundDepth,vecSoundUp;
-    
-    dRoll = dPitch = dYaw = 0;
     
     vecSoundHor = CC3VectorMake(1,0,0);
     vecSoundDepth = CC3VectorMake(0,0,1);
     vecSoundUp = CC3VectorMake(0,1,0);
     
+    if(dElev > M_PI * 0.4){
+        dElev = M_PI * 0.4;
+    }
+    else if(dElev < -M_PI * 0.4)
+        dElev = -M_PI * 0.4;
+    
 //    if(!CC3VectorsAreEqual(vecAt,vecTop))
 //        vecHor = CC3VectorCross(vecTop,vecAt);
     
-    if(sMotion == 1){                       // Pitch changed
-        vecAt = [self vecRotate:vecAt aroundVec:vecHor byRad:-dPt];
-        vecUp = [self vecRotate:vecUp aroundVec:vecHor byRad:-dPt];
-    }
-    else if(sMotion == 2){                  // Yaw changed
-        vecAt = [self vecRotate:vecAt aroundVec:vecUp byRad:dYw];
-        vecHor = [self vecRotate:vecHor aroundVec:vecUp byRad:dYw];
-    }
-    else if(sMotion == 3){                  // Roll changed
-        vecHor = [self vecRotate:vecHor aroundVec:vecAt byRad:dRl];
-        vecUp = [self vecRotate:vecUp aroundVec:vecAt byRad:dRl];
-    }
-    
-    for(sInt = 0;sInt < 127;sInt ++){
-        
-        if(sMotion == 1)                    // Pitch changed
-            vecDir[sInt] = [self vecRotate:vecDir[sInt] aroundVec:vecSoundHor byRad:dPt];
-        else if(sMotion == 2)               // Yaw changed
-            vecDir[sInt] = [self vecRotate:vecDir[sInt] aroundVec:vecSoundUp byRad:-dYw];
-        else if(sMotion == 3)              // Roll changed
-            vecDir[sInt] = [self vecRotate:vecDir[sInt] aroundVec:vecSoundDepth byRad:-dRl];
-        
-        if(vecDir[sInt].y > sin(11 * M_PI / 24)){
-            Numero[0] = Numero[1] = 0;
+    if(sMotion > 0){                       // Pitch changed
+        vecHor = [self vecRotate:vecSoundHor aroundVec:vecSoundUp byRad:dAzim];
+        vecAt = [self vecRotate:vecSoundDepth aroundVec:vecSoundUp byRad:dAzim];
+        vecAt = [self vecRotate:vecAt aroundVec:vecHor byRad:-dElev];
+        if(isRollOn){
+            vecUp = [self vecRotate:vecSoundUp aroundVec:vecAt byRad:dRoll];
+            sMotion = 0;
         }
-        else if(vecDir[sInt].y < sin(-11 * M_PI /24)){
-            Numero[0] = Numero[1] = 253;
-        }
-        else if(vecDir[sInt].y > sin(3 * M_PI / 8)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 8;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 4 / M_PI;
-            Numero[1] = 1 + (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y < sin(-3 * M_PI / 8)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 8;
-            dNumero = h * 4 / M_PI;
-            Numero[1] = 248 - (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y > sin(7 * M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 16;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 8 / M_PI;
-            Numero[1] = 9 + (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y < sin(-7 * M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 16;
-            dNumero = h * 8 / M_PI;
-            Numero[1] = 236 - (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y > sin(5 * M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 24;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 12 / M_PI;
-            Numero[1] = 25 + (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y < sin(-5 * M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 24;
-            dNumero = h * 12 / M_PI;
-            Numero[1] = 216 - (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y > sin(M_PI / 8)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 30;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 15 / M_PI;
-            Numero[1] = 49 + (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y < sin(-M_PI / 8)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 30;
-            dNumero = h * 15 / M_PI;
-            Numero[1] = 189 - (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y > sin(M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 32;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 16 / M_PI;
-            Numero[1] = 79 + (SInt16)dNumero;
-        }
-        else if(vecDir[sInt].y < sin(-M_PI / 24)){
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 32;
-            dNumero = h * 16 / M_PI;
-            Numero[1] = 158 - (SInt16)dNumero;
-        }
-        else{
-            h = atan2(-vecDir[sInt].x,vecDir[sInt].z);
-            h += M_PI / 32;
-            if(h < 0)
-                h += 2 * M_PI;
-            dNumero = h * 16 / M_PI;
-            if(dNumero < 16){
-                Numero[1] = 111 + (SInt16)dNumero;
+        else if(dRoll != 0){
+            sRoll = (SInt16)(dRoll * 100.0 / M_PI);
+            if(sRoll > 0){
+                sRoll -= 1;
             }
-            else{
-                Numero[1] = 158 - (SInt16)dNumero;
+            else if(sRoll < 0){
+                sRoll += 1;
             }
+            dRoll = (double)sRoll * M_PI / 100.0;
+            vecUp = [self vecRotate:vecSoundUp aroundVec:vecAt byRad:dRoll];
+            double dDir = dRoll * 36 / M_PI;
+            player.iRoll = (SInt16)dDir + 18;
+            sMotion = 3;
         }
-        if(Numero[1] == 0 || Numero[1] == 1 || Numero[1] == 9 || Numero[1] == 25 || Numero[1] == 49 || Numero[1] == 79 || Numero[1] == 111 || Numero[1] == 142 || Numero[1] == 174 || Numero[1] == 204 || Numero[1] == 228 || Numero[1] == 244 || Numero[1] == 252)
-            Numero[0] = Numero[1];
-        else if(Numero[1] < 9)
-            Numero[0] = 10 - Numero[1];
-        else if(Numero[1] < 25)
-            Numero[0] = 34 - Numero[1];
-        else if(Numero[1] < 49)
-            Numero[0] = 74 - Numero[1];
-        else if(Numero[1] < 79)
-            Numero[0] = 128 - Numero[1];
-        else if(Numero[1] < 111)
-            Numero[0] = 190 - Numero[1];
-        else if(Numero[1] < 127)
-            Numero[0] = 15 + Numero[1];
-        else if(Numero[1] < 142)
-            Numero[0] = Numero[1] - 15;
-        else if(Numero[1] < 174)
-            Numero[0] = 174 - Numero[1] + 142;
-        else if(Numero[1] < 204)
-            Numero[0] = 204 - Numero[1] + 174;
-        else if(Numero[1] < 228)
-            Numero[0] = 228 - Numero[1] + 204;
-        else if(Numero[1] < 244)
-            Numero[0] = 244 - Numero[1] + 228;
         else
-            Numero[0] = 252 - Numero[1] + 244;
-        
-        Byte cByte;
-        cByte = Numero[0] & 0xff;
-        [[player dilID]replaceBytesInRange:NSMakeRange(sInt,sizeof(Byte)) withBytes:&cByte];
-        SInt16 iByte = 253 - sInt;
-        sVal = 253 - Numero[0];
-        cByte = sVal & 0xff;
-        [[player dilID]replaceBytesInRange:NSMakeRange(iByte,sizeof(Byte)) withBytes:&cByte];
-        cByte = Numero[1] & 0xff;
-        [[player dirID]replaceBytesInRange:NSMakeRange(sInt,sizeof(Byte)) withBytes:&cByte];
-        sVal = 253 - Numero[1];
-        cByte = sVal & 0xff;
-        [[player dirID]replaceBytesInRange:NSMakeRange(iByte,sizeof(Byte)) withBytes:&cByte];
-        
+            sMotion = 0;
     }
-    sMotion = 0;
     
     glClearColor(0, 104.0 / 255.0, 55.0 / 255.0, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -1076,18 +1052,20 @@ const GLubyte Indices[] = {
     NSString *newStr = [[NSString alloc]initWithString:newUrl.absoluteString];
     [player setIStage:0];
     
-    mtnLabel.font = [UIFont systemFontOfSize:sFontSize];
-    tiltLabel.font = [UIFont systemFontOfSize:sFontSize];
-    if(is3d){
-        [tiltBtn setAlpha:0.5f];
-        tiltLabel.text = @"Pitch is on";
-        uPitchRoll = 1;
+    rollLabel.font = [UIFont systemFontOfSize:sFontSize];
+    polarLabel.font = [UIFont systemFontOfSize:sFontSize];
+    if(player.bCardioid == 0)
+        polarLabel.text = @"Omnidirectional";
+    else if(player.bCardioid == 1)
+        polarLabel.text = @"Cardioid Soft";
+    else
+        polarLabel.text = @"Cardioid Sharp";
+    
+    if(!is3d){
+        isBtnOn = NO;
+        rollLabel.text = offText;
     }
-    else{
-        [tiltBtn setAlpha:0.25f];
-        tiltLabel.text = offText;
-        uPitchRoll = 0;
-    }
+
     if(isAsset){
         player.isAsset = YES;
         player.isFromDir = YES;
@@ -1128,13 +1106,17 @@ const GLubyte Indices[] = {
     else{
         myLabel.shadowOffset = CGSizeMake(1,1);
         myLabel.shadowColor = [UIColor darkTextColor];
-        if(_manager.gyroAvailable){
-            mtnLabel.text = @"Self motion";
-            [self addSubview:mtnBtn];
+
+        if(!_manager.gyroAvailable){
+            mtnLabel.font = [UIFont systemFontOfSize:sFontSize];
             [self addSubview:mtnLabel];
         }
-        [self addSubview:tiltLabel];
-        [self addSubview:tiltBtn];
+        else{
+            [self addSubview:rollLabel];
+            [self addSubview:rollBtn];
+        }
+        [self addSubview:polarLabel];
+        [self addSubview:polarBtn];
         
         [self addSubview:myLabel];
         NSNotification* notification;
@@ -1243,13 +1225,16 @@ const GLubyte Indices[] = {
         if(player.numBytesWritten > 0){
             return;
         }
-        if(_manager.gyroAvailable){
-            mtnLabel.text = @"Self motion";
-            [self addSubview:mtnBtn];
+        if(!_manager.gyroAvailable){
+            mtnLabel.font = [UIFont systemFontOfSize:sFontSize];
             [self addSubview:mtnLabel];
         }
-        [self addSubview:tiltLabel];
-        [self addSubview:tiltBtn];
+        else{
+            [self addSubview:rollLabel];
+            [self addSubview:rollBtn];
+        }
+        [self addSubview:polarLabel];
+        [self addSubview:polarBtn];
         
         NSNotification* notification;
         notification = [NSNotification notificationWithName:@"readyToGo" object:self];
@@ -1340,8 +1325,9 @@ const GLubyte Indices[] = {
     CGPoint point;
     double dDifX = 0;
     double dDifY = 0;
+    double dDir;
     
-    if(myOrientation == UIDeviceOrientationPortrait){
+    if(myOrientation == UIDeviceOrientationPortrait || myOrientation == UIDeviceOrientationPortraitUpsideDown){
         dDifX = p.x - dCurrentX;
         dDifY = p.y - dCurrentY;
         if(fabs(dDifX) > fabs(dDifY)){
@@ -1354,9 +1340,16 @@ const GLubyte Indices[] = {
             }
             point = sender.contentOffset;
             dCurrentX = point.x;
-            dPan += dDifX * M_PI * 2 / (double)imageWidth;
-            dYaw += dPan;
-            dPan = 0;
+            dAzim += dDifX * M_PI * 2 / (double)imageWidth;
+            if(dAzim > M_PI)
+                dAzim -= dWPi;
+            else if(dAzim <= -M_PI)
+                dAzim += dWPi;
+            
+            dDir = -dAzim * 36 / M_PI;
+            if(dDir < 0)
+                dDir += 72;
+            player.iAzim = (SInt16)dDir;
         }
         else{
             if(p.y < imageWidth / 2){
@@ -1367,12 +1360,15 @@ const GLubyte Indices[] = {
             }
             point = [sender contentOffset];
             dCurrentY = point.y;
-            if(uPitchRoll > 0){
-                sMotion = 1;
-                dTilt += dDifY * M_PI * 2 / (double)imageWidth;
-                dPitch += dTilt;
-                dTilt = 0;
-            }
+            sMotion = 1;
+            dElev += dDifY * M_PI * 2 / (double)imageWidth;
+            if(dElev > M_PI * 0.4)
+                dElev = M_PI * 0.4;
+            else if(dElev < -M_PI * 0.4)
+                dElev = -M_PI * 0.4;
+                
+            dDir = dElev * 36 / M_PI;
+            player.iElev = (SInt16)dDir + 18;
         }
     }
     else{
@@ -1386,11 +1382,17 @@ const GLubyte Indices[] = {
             else if(p.x >= (double)imageWidth * 3 / 2){
                 sender.contentOffset = CGPointMake((SInt16)p.x - imageWidth,(SInt16)p.y);
             }
-            point = sender.contentOffset;
-            dCurrentX = point.x;
-            dPan += dDifX * M_PI * 2 / (double)imageWidth;
-            dYaw += dPan;
-            dPan = 0;
+            dCurrentX = p.x;
+            dAzim += dDifX * M_PI * 2 / (double)imageWidth;
+            if(dAzim > M_PI)
+                dAzim -= dWPi;
+            else if(dAzim <= -M_PI)
+                dAzim += dWPi;
+
+            dDir = -dAzim * 36 / M_PI;
+            if(dDir < 0)
+                dDir += 72;
+            player.iAzim = (SInt16)dDir;
         }
         else{
             if(p.y < imageWidth / 2){
@@ -1399,14 +1401,16 @@ const GLubyte Indices[] = {
             else if(p.y >= (double)imageWidth * 3 / 2){
                 sender.contentOffset = CGPointMake((SInt16)p.x,(SInt16)p.y - imageWidth);
             }
-            point = [sender contentOffset];
-            dCurrentY = point.y;
-            if(uPitchRoll > 0){
-                sMotion = 1;
-                dTilt += dDifY * M_PI * 2 / (double)imageWidth;
-                dPitch += dTilt;
-                dTilt = 0;
-            }
+            dCurrentY = p.y;
+            sMotion = 1;
+            dElev += dDifY * M_PI * 2 / (double)imageWidth;
+            if(dElev > M_PI * 0.4)
+                dElev = M_PI * 0.4;
+            else if(dElev < -M_PI * 0.4)
+                dElev = -M_PI * 0.4;
+                
+            dDir = dElev * 36 / M_PI;
+            player.iElev = (SInt16)dDir + 18;
         }
     }
 }

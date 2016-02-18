@@ -7,7 +7,6 @@
 //
 
 #import "AppDelegate.h"
-
 #import "MasterViewController.h"
 
 @implementation AppDelegate
@@ -16,18 +15,44 @@
 @synthesize managedObjectModel = _managedObjectModel;
 @synthesize persistentStoreCoordinator = _persistentStoreCoordinator;
 
+MasterViewController *controller;
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
     // Override point for customization after application launch.
     if ([[UIDevice currentDevice] userInterfaceIdiom] == UIUserInterfaceIdiomPad) {
         UINavigationController *masterNavigationController = (UINavigationController *)self.window.rootViewController;
-        MasterViewController *controller = (MasterViewController *)masterNavigationController.topViewController;
+        controller = (MasterViewController *)masterNavigationController.topViewController;
         controller.managedObjectContext = self.managedObjectContext;
     } else {
         UINavigationController *navigationController = (UINavigationController *)self.window.rootViewController;
-        MasterViewController *controller = (MasterViewController *)navigationController.topViewController;
+        controller = (MasterViewController *)navigationController.topViewController;
         controller.managedObjectContext = self.managedObjectContext;
     }
+    
+    return YES;
+}
+
+-(BOOL)application:(UIApplication *)application openURL:(nonnull NSURL *)url sourceApplication:(nullable NSString *)sourceApplication annotation:(nonnull id)annotation{
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setObject:[url absoluteString] forKey:@"myUrl"];
+    [defaults synchronize];
+    
+    NSString *str = [url query];
+//    NSLog(@"%@",controller.mySearch.text);
+    if([controller.mySearch.text  isEqual: @"Busy"]){
+        UIAlertView *alertView = [[UIAlertView alloc]
+                                  initWithTitle : @"mySopa is busy"
+                                  message:@"Close SOPA player view first!"
+                                  delegate : nil cancelButtonTitle : @"OK"
+                                  otherButtonTitles : nil];
+        [alertView show];
+    }
+    else{
+        controller.mySearch.text = str;
+        [controller called];
+    }
+
     return YES;
 }
 							

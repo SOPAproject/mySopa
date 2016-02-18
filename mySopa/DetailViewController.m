@@ -134,15 +134,15 @@
     }
     else{
         sFontSize = 16;
-        textPosLong = self.view.frame.size.height * 3 / 5;
-        textPosShort= self.view.frame.size.width / 3;
+        textPosLong = self.view.frame.size.width * 3 / 5;
+        textPosShort= self.view.frame.size.height / 4;
     }
     
     if(sOrientation == UIDeviceOrientationPortrait){
         myText = [[UILabel alloc]initWithFrame:CGRectMake(textPosShort,textPosLong,self.view.frame.size.width,self.view.frame.size.height / 4)];
     }
     else{
-        myText = [[UILabel alloc]initWithFrame:CGRectMake(textPosLong,textPosShort,self.view.frame.size.width,self.view.frame.size.height / 4)];
+        myText = [[UILabel alloc]initWithFrame:CGRectMake(textPosLong / 5,textPosShort,self.view.frame.size.width,self.view.frame.size.height / 4)];
 //        myText = [[UILabel alloc]initWithFrame:CGRectMake(textPosLong,textPosShort,self.view.frame.size.height,self.view.frame.size.width)];
     }
     myText.textAlignment = NSTextAlignmentLeft;
@@ -270,6 +270,8 @@
     NSString *txtStr,*myStr;
     NSURL *tmpUrl,*myURL;
     NSString *tmpStr = [sopaUrl absoluteString];
+    NSData *fileData;
+    UInt32 uSkipSamples = 0;
     
     NSRange range = [tmpStr rangeOfString:@"00.sopa"];
     if(range.location == NSNotFound){
@@ -283,32 +285,50 @@
         myURL = [[NSURL alloc]initWithString:myStr];
         tmpUrl = [myURL URLByAppendingPathExtension:@"txt"];
     }
-    txtStr = [tmpUrl absoluteString];
-    NSURL *txtURL = [[NSURL alloc]initWithString:txtStr];
-    UInt32 uSkipSamples = 0;
     
     iMilliSecIntvl = 2000;
-    NSString *str = [NSString stringWithContentsOfURL:txtURL encoding:NSUTF8StringEncoding error:&err];
-    range = [str rangeOfString:@"\n"];
-    if(str.length == 0 || range.location == NSNotFound){
-        isSS = NO;
-    }
-    else{
-        isSS = YES;
-        NSString *subStr = [str substringToIndex:range.location];
-        iFirstJpg = [subStr intValue];
-        //    iFirstJpg = 0;
+    txtStr = [tmpUrl absoluteString];
+    if([[UIApplication sharedApplication] canOpenURL:tmpUrl]){
+        NSURL *txtURL = [[NSURL alloc]initWithString:txtStr];
         
-        subStr = [str substringFromIndex:range.location + 1];
-        iMilliSecIntvl = [subStr intValue];
-        uSkipSamples = iSR * iMilliSecIntvl * iFirstJpg / 1000;
-        iFileNum = uSkipSamples * 4 / uCS;
+        NSString *str = [NSString stringWithContentsOfURL:txtURL encoding:NSUTF8StringEncoding error:&err];
+        NSRange range = [str rangeOfString:@"\n"];
         
-        if(isSequel){
-            NSString *strSopa = [NSString stringWithFormat:@"%02d.sopa",iFileNum];
-            NSString *newStr = [tmpStr stringByReplacingOccurrencesOfString:@"00.sopa" withString:strSopa];
-            sopaUrl = [[NSURL alloc]initWithString:newStr];
+        if(str.length == 0 || range.location == NSNotFound){
+            isSS = NO;
         }
+        else{
+            isSS = YES;
+            NSString *subStr = [str substringToIndex:range.location];
+            iFirstJpg = [subStr intValue];
+            //    iFirstJpg = 0;
+            
+            subStr = [str substringFromIndex:range.location + 1];
+            iMilliSecIntvl = [subStr intValue];
+            uSkipSamples = iSR * iMilliSecIntvl * iFirstJpg / 1000;
+            iFileNum = uSkipSamples * 4 / uCS;
+        }
+    }
+    if(!isSS){
+        myStr = [tmpStr stringByReplacingOccurrencesOfString:@".sopa" withString:@"0001.jpg"];
+        myURL = [[NSURL alloc]initWithString:myStr];
+        fileData = [NSData dataWithContentsOfURL:myURL];
+        if(fileData.length){
+            isSS = YES;
+            iMilliSecIntvl = 1000;
+            iFirstJpg = 0;
+            uSkipSamples = iSR * iMilliSecIntvl * iFirstJpg / 1000;
+            iFileNum = uSkipSamples * 4 / uCS;
+            
+        }
+        else{
+            isSS = NO;
+        }
+    }
+    if(isSequel){
+        NSString *strSopa = [NSString stringWithFormat:@"%02d.sopa",iFileNum];
+        NSString *newStr = [tmpStr stringByReplacingOccurrencesOfString:@"00.sopa" withString:strSopa];
+        sopaUrl = [[NSURL alloc]initWithString:newStr];
     }
 }
 
@@ -359,7 +379,8 @@
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response{
-    headerData = [[NSMutableData alloc] initWithData:0];
+//    headerData = [[NSMutableData alloc] initWithData:0];
+    headerData = [NSMutableData data];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data{
@@ -375,7 +396,7 @@
         nSampleRate += *(int *)([val0 bytes]) * 256;
         iSR = nSampleRate;
         val0 = (NSData *)[headerData subdataWithRange:NSMakeRange(39,1)];
-        if(*(int *)([val0 bytes]) <= 1){
+        if(*(int *)([val0 bytes]) <= 0){
             is3d = NO;
         }
         else{
@@ -411,7 +432,7 @@
     return NO;
 }
 
-- (NSUInteger)supportedInterfaceOrientations {
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations {
     return UIInterfaceOrientationMaskAllButUpsideDown;
 }
 
@@ -442,7 +463,9 @@
     self.navigationItem.rightBarButtonItem = nil;
     //    NSLog(@"%@: %@", NSStringFromSelector(_cmd), self);
     
-    [[NSNotificationCenter defaultCenter] removeObserver:nil];
+//    [[NSNotificationCenter defaultCenter] removeObserver:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                    name:UIKeyboardDidShowNotification object:nil];
     
 }
 
