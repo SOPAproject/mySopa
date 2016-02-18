@@ -3,8 +3,8 @@
 //  mySopa
 //
 //  Created by 蘆原 郁 on 2014/03/28.
-//  Revised on 2 Mar. 2015
-//  Copyright (c) 2015年 jp.go.aist.staff. All rights reserved.
+//  Revised on 3 Feb. 2016
+//  Copyright (c) 2016年 jp.go.aist.staff. All rights reserved.
 //
 
 #import "MasterViewController.h"
@@ -23,6 +23,13 @@
 @synthesize tableView = _tableView;
 @synthesize mySearch;
 @synthesize myTextView = _myTextView;
+
+-(void)called{
+    [self insertNewObject:self];
+    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+    [_tableView selectRowAtIndexPath:indexPath animated:YES scrollPosition:UITableViewScrollPositionNone];
+    [self tableView:self.tableView didSelectRowAtIndexPath:indexPath];
+}
 
 /*
 - (void)awakeFromNib
@@ -61,7 +68,7 @@
     _myTextView.editable = NO;
     _myTextView.dataDetectorTypes = UIDataDetectorTypeLink;
     _myTextView.textColor = [UIColor darkTextColor];
-    _myTextView.text = @"-mySopa- Copyright © 2015, AIST\nhttps://staff.aist.go.jp/ashihara-k/mySopa.html";
+    _myTextView.text = @"-mySopa- Copyright © 2016, AIST\nhttps://staff.aist.go.jp/ashihara-k/mySopa.html";
 }
 
 -(void)viewWillAppear:(BOOL)animated{
@@ -85,20 +92,54 @@
     NSIndexPath *indexPath = _tableView.indexPathForSelectedRow;
     
     [super viewDidAppear:animated];
+/*
+    NSUserDefaults *def = [NSUserDefaults standardUserDefaults];
+    NSString *str = [def stringForKey:@"myUrl"];
+    NSString *newStr = [str stringByReplacingOccurrencesOfString:@"callmysopa://jp.go.aist.staff/" withString:@""];
+    [def removeObjectForKey:@"myUrl"];
+    [def synchronize];
+    //    NSLog(@"%@",newStr);
+    if([newStr containsString:@".sopa"]){
+        mySearch.text = newStr;
+        [self insertNewObject:self];
+    }   */
+    
     if (indexPath) {
         [_tableView deselectRowAtIndexPath:indexPath animated:animated];
     }
     else{
         if(isEmpty){
-            mySearch.text = @"https://staff.aist.go.jp/ashihara-k/resource/canon22k.sopa";
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_ss0/railway.sopa";
             [self createSampleObject:self];
-            mySearch.text = @"https://staff.aist.go.jp/ashihara-k/v3/cygne22k.sopa";
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_ss0/croak.sopa";
             [self createSampleObject:self];
-            mySearch.text = @"https://staff.aist.go.jp/ashihara-k/v3/musix1.sopa";
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_ss0/haunted_sniper.sopa";
             [self createSampleObject:self];
-            mySearch.text = @"https://staff.aist.go.jp/ashihara-k/v3/panther22k.sopa";
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_ss0/lost_species.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/walkers.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/panther22k.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/two_pianos.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/fantaisie.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/ave_maria.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/primavera.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/canon.sopa";
+            [self createSampleObject:self];
+            mySearch.text = @"https://unit.aist.go.jp/hiri/hi-infodesign/as_still/cygne22k.sopa";
             [self createSampleObject:self];
         }
+    }
+    if([mySearch.text isEqualToString:@"Busy"]){
+        indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+        NSManagedObject *object = [[self fetchedResultsController] objectAtIndexPath:indexPath];
+    
+        mySearch.text = [[object valueForKey:@"path"] description];
     }
 }
 
@@ -106,7 +147,6 @@
     NSManagedObjectContext *context = [self.fetchedResultsController managedObjectContext];
     
     [super viewWillDisappear:animated];
-//    NSLog(@"View will disappear");
     // Save the context.
     NSError *error = nil;
     if (![context save:&error]) {
@@ -152,6 +192,12 @@
     if([result count] > 0){
         NSManagedObject *managedObj = [result objectAtIndex:0];
         [managedObj setValue:[NSDate date] forKey:@"timeStamp"];
+        if (![context save:&error]) {
+            // Replace this implementation with code to handle the error appropriately.
+            // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+            NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
+            abort();
+        }
         return;
     }
     
@@ -262,6 +308,11 @@
     return NO;
 }
 
+-(void)tableView:(UITableView *)tableView selectRowAtIndexPath:(NSIndexPath *)indexPath animated:(BOOL)animated
+  scrollPosition:(UITableViewScrollPosition)scrollPosition{
+    
+}
+
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
     NSManagedObject *object = [[self fetchedResultsController]objectAtIndexPath:indexPath];
@@ -269,17 +320,17 @@
     [object setValue:[NSDate date] forKey:@"timeStamp"];
     [self.mySearch resignFirstResponder];
     
+    self.mySearch.text = @"Busy";
     [self performSegueWithIdentifier:@"showDetail" sender:self];
 }
 
 - (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender
 {
     if ([[segue identifier] isEqualToString:@"showDetail"]) {
-        NSIndexPath *indexPath = [self.tableView indexPathForSelectedRow];
-        NSManagedObject *object = [[self fetchedResultsController] objectAtIndexPath:indexPath];
+            NSIndexPath *indexPath = [self.tableView indexPathForSelectedRow];
+            NSManagedObject *object = [[self fetchedResultsController] objectAtIndexPath:indexPath];
         
-        mySearch.text = [[object valueForKey:@"path"] description];
-        [[segue destinationViewController] setDetailItem:object];
+            [[segue destinationViewController] setDetailItem:object];
     }
 }
 

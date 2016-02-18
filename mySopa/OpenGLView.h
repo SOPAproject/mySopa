@@ -71,6 +71,8 @@
 @property SInt16 iMilliSecIntvl;
 @property SInt16 nSR;                   // Sample rate
 @property long expectedLength;
+@property double dAzim;
+@property double dElev;
 @property double dRoll;
 
 -(void)setupDatabase;
